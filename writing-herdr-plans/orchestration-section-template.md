@@ -23,7 +23,8 @@ Each worker owns exactly one task in one worktree.
 | 0 | T-000 (orchestrator) | – |
 | 1 | T-001 … · T-002 … · T-003 … | T-000 |
 | … | … | … |
-| n | T-0NN cross-cutting review (read-only) | everything above |
+| n-1 | T-0NN E2E, usability and motion pass (tests and findings report only; omit and say so if the plan has no UI) | every feature task |
+| n | T-0NN cross-cutting review (read-only) | everything above, and the E2E, usability and motion pass |
 | n+1 | Fix tasks from the review (T-0NN+1…) · vault sync (orchestrator) | review |
 
 **Model policy** (verify the effective model from the worker's status line after start):
@@ -71,6 +72,31 @@ Close a worker pane only after its report is accepted and no follow-up turn is n
 
 Generate it with `bash <executing-herdr-plans skill dir>/scripts/make-package.sh`; for the read-only cross-cutting review, add `--role review`.
 
+**ClickUp sync** (remove this block and write `**ClickUp:** none` plus the reason if there is no board). Rules: the "ClickUp sync worker" rule in writing-herdr-plans.
+- Board: list `<list id>` (`<list name>`), decision D`<n>` `to confirm`. The only writer is the `clickup` worker; it counts toward the 6-pane cap.
+- Status mapping (exact names from the list):
+
+  | Task state | ClickUp status |
+  |---|---|
+  | planned | `<status>` |
+  | in progress | `<status>` |
+  | in review | `<status>` |
+  | integrated | `<status>` |
+  | verified | `<status>` |
+  | blocked | `<status>` |
+
+- Launch (model `haiku`, fallback `sonnet`; `<tool allowance>` is the verified `--allowedTools "mcp__claude_ai_ClickUp__*"` or the permission mode the user approved):
+
+  ```bash
+  split=$(herdr pane split --pane <worker-column-pane> --direction down --cwd "$report_dir" --no-focus)
+  pane=$(printf '%s' "$split" | jq -r '.result.pane.pane_id')
+  herdr agent start clickup --kind claude --pane "$pane" --timeout 120000 -- --model haiku <tool allowance> -n "ClickUp sync"
+  ```
+
+- First prompt: the confirmed list id, the status mapping, the rules (touch only tasks of this run in that list; no deletes, no lists or folders, no assignees or due dates; no secrets or PII), and the instruction to keep `$report_dir/clickup-map.json`.
+- Events (one prompt per batch, `--wait`): `plan created` (create one task per plan task: title, acceptance criteria, dependencies) · `plan revised` (edit title, description, dependencies; create new tasks; close removed ones with a comment) · `dispatched` · `in review` · `integrated` · `verified` · `blocked`. Each line: `T-0NN → <state> | <evidence>`.
+- After each batch the worker reads the affected tasks back and reports `STATUS` and the map. Record the result in the scratchpad's ClickUp line; on failure, queue the events there and continue.
+
 **Acceptance per task.** All of these must hold:
 - the worker state has settled;
 - the report says PASS;
@@ -83,6 +109,8 @@ Generate it with `bash <executing-herdr-plans skill dir>/scripts/make-package.sh
 ```bash
 <full gate, e.g. pnpm lint && pnpm test && pnpm test:e2e && pnpm build>
 ```
+
+**Final verification** (UI plans, run after the E2E, usability and motion task is merged): `<e2e command, desktop and mobile projects>`. It must leave screenshots and the findings report in `$report_dir`. Critical and Important findings become fix tasks; Minor ones are recorded as debt.
 
 ## Worker environment
 

@@ -18,7 +18,8 @@ One orchestrator session runs a plan written with **writing-herdr-plans**. It ru
 **Herdr agent names** must be unique among live agents:
 - implementer: `t0NN`;
 - reviewer: `t0NN-r<N>` (N = review attempt);
-- fresh fix worker: `t0NN-f<N>` (N = fix attempt).
+- fresh fix worker: `t0NN-f<N>` (N = fix attempt);
+- ClickUp sync worker: `clickup`.
 
 The `-n` label is only Claude's display name.
 
@@ -29,6 +30,7 @@ The `-n` label is only Claude's display name.
   - is the only writer of `SCRATCHPAD.md` and the vault.
 - **Worker:** executes one package, writes one report and never orchestrates.
   - Workers may use internal subagents for analysis; those never replace Herdr workers.
+- **ClickUp sync worker** (only if the plan has a ClickUp block): the only writer to the board, through the ClickUp MCP. It creates and edits tasks from the events you send it; it has no code access and never receives a task package. Task workers and reviewers never hear of ClickUp.
 - **Decide routine technical questions yourself** and record them as D-numbers. Ask the user only for:
   - product decisions that change scope;
   - destructive or security-sensitive actions;
@@ -43,19 +45,47 @@ The `-n` label is only Claude's display name.
 3. Read the scratchpad (`scratchpad-template.md` if missing), the plan and its summary. Confirm the vault MCP is connected before reading the vault notes the tasks name.
    - If the MCP fails: tell the user, record the blocker, and continue only the tasks that do not depend on vault content. Queue the vault updates in the scratchpad.
    - Never fall back to reading vault files from disk.
-4. Create the report dir: `mkdir -p -m 700 ~/.cache/herdr-reports/<run-id>`. Packages, reports, reviews, fix files and vault excerpts (`<task>.vault.md`) all live there.
-5. Check that the plan has the writing-herdr-plans headings: build the first worker task's package (T-001) with `make-package.sh`. The script fails and names any missing section.
-6. **Permission mode.** Workers need a write-capable mode.
+4. **Stack and architecture confirmation** (the only up-front stop of the run; read-only, install nothing). Build the inventory, show it to the user, and wait for their answer before step 5.
+   - **Read:**
+     - the repo: `dependencies` and `devDependencies` of the root and each workspace `package.json`, the lockfile, `tsconfig*`, `docker-compose*`, ORM and migration config or folders, CI files, the project `CLAUDE.md`, and the top-level folder layout;
+     - the plan: the Tech Stack header, `## Decisions recorded for this plan`, T-000, the contract sections, and the libraries and patterns named in task Files and Interfaces;
+     - company defaults the project `CLAUDE.md` or the global one lists, and the vault notes on architecture if the MCP is connected.
+   - **Inventory table**, in the user's language, one row per category: `Category · Value · Source · Status`.
+     - Categories: package manager, runtime and language, backend framework, **data access (ORM or query builder, e.g. TypeORM, Sequelize, Prisma, Drizzle)**, database engine, migrations tool, auth, validation, API style, frontend framework and build tool, UI kit, state and data fetching, forms, unit and E2E test runners, lint and format, CI and deploy, architecture (module layout, layering, monorepo shape).
+     - Source: `repo`, `plan`, `both`, `company default`.
+     - Status: `confirmed` (repo and plan agree, or only one names it and the other does not contradict it), `conflict` (repo and plan, or plan and company default, disagree, e.g. the repo has Prisma and the plan says TypeORM), `undecided` (a task needs it and nobody named it), `redundant` (the repo has two libraries for the same job).
+   - **Also list what may have been missed:**
+     - libraries a task imports that T-000 does not install;
+     - a category with tasks but no decision in the plan;
+     - two tasks assuming different libraries for the same job;
+     - repo conventions (folder layout, naming, test location) the plan's tasks contradict.
+   - **Ask once.** Show the table, then only the rows that are `conflict`, `undecided` or `redundant`, each with your recommendation and a one-line tradeoff. A `confirmed` row is shown, not asked about, but the user may change it. Batch into this same message the other questions this preflight needs: permission mode (step 7), keeping the machine awake (step 8) and a ClickUp board decision still `to confirm` (step 9).
+   - **After the answer:**
+     - record each stack choice as a D-number with status `approved` (user's words as the source) and write a "Stack confirmed" line in the scratchpad with the date;
+     - if an answer changes the plan (another ORM, an extra library, a different layout), revise the plan on the coordination branch first: Tech Stack header, T-000 dependencies, and the tasks, contracts and Worker environment it touches. Run the plan's self-review again, record the revision as a D-number, and send `plan revised` to the `clickup` worker once it is running;
+     - from here on, run the plan without asking about the stack again. A worker that needs a library outside the confirmed list stops with BLOCKED, as the plan already requires.
+   - **No shortcuts.** User urgency does not skip this step; it makes the question shorter. If the user is away, wait: never mark a stack choice `approved` yourself, and never pick between conflicting rows on their behalf. On resume, skip it only when the scratchpad shows "Stack confirmed" and the plan's Tech Stack and T-000 are unchanged since that date.
+5. Create the report dir: `mkdir -p -m 700 ~/.cache/herdr-reports/<run-id>`. Packages, reports, reviews, fix files and vault excerpts (`<task>.vault.md`) all live there.
+6. Check that the plan has the writing-herdr-plans headings: build the first worker task's package (T-001) with `make-package.sh`. The script fails and names any missing section.
+7. **Permission mode.** Workers need a write-capable mode.
    - Launching with `--permission-mode auto` may be denied by the permission classifier. If so, ask the user once to authorize it and record the answer as a D-number.
    - If the user refuses, ask which write-capable mode they approve (e.g. `acceptEdits`, approving commands in each pane). Never switch to bypass flags.
-7. **Keep the machine awake.** Sleep pauses every worker and cuts off reports. Ask the user first; with their OK, run `caffeinate -i` in a pane you create.
-8. Do T-000 yourself on the coordination branch: dependencies, scripts, test isolation, gate green. Record the base commit.
+8. **Keep the machine awake.** Sleep pauses every worker and cuts off reports. Ask the user first; with their OK, run `caffeinate -i` in a pane you create.
+9. **ClickUp sync** (skip if the plan says `**ClickUp:** none`). Verify first, then start the worker:
+   - the plan's board decision is `approved`. If it is still `to confirm`, ask the user now: creating tasks is outward-facing;
+   - `claude mcp list` shows ClickUp connected. If not, tell the user, queue the events in the scratchpad and run without the worker;
+   - start the worker with the plan's launch block: `herdr agent start clickup --kind claude --pane <pane> --timeout 120000 -- --model <plan model> <verified tool allowance> -n "ClickUp sync"`, in `<report-dir>` and without `--add-dir` of any worktree. Verify its effective model like any worker;
+   - send the first prompt from the plan: list id, status mapping, limits, and the map file `<report-dir>/clickup-map.json`;
+   - send `plan created`. The worker creates one task per plan task and reports the map. Read the board back yourself for a sample of tasks (`clickup_get_task`) before writing `ClickUp sync: started` in the scratchpad.
+
+   It is not a task worker, but it does count toward the cap of live panes.
+10. Do T-000 yourself on the coordination branch: dependencies, scripts, test isolation, gate green. Record the base commit.
 
 Model order is `haiku` < `sonnet` < `opus`. Herdr `--timeout` values are milliseconds. The task-specific values below (`E2E_DATABASE_NAME`, DB names, ports) come from the plan's "Worker environment" and orchestration sections.
 
 ## Wave Loop
 
-Dispatch while there are fewer than **6 live worker panes**, or the plan's lower cap. Implementers, reviewers and fix workers all count; a `caffeinate` pane does not.
+Dispatch while there are fewer than **6 live worker panes**, or the plan's lower cap. Implementers, reviewers, fix workers and the `clickup` worker all count; a `caffeinate` pane does not.
 - A task starts as soon as its own dependencies are `verified` and a pane is free. It does not wait for the rest of its wave.
 - When a pane frees up, use it in this order: pending reviews and re-reviews first (they unblock merges), then fix rounds, then new implementers in plan order.
 - The cap changes only by a new explicit user instruction, recorded as a D-number.
@@ -88,6 +118,28 @@ Dispatch while there are fewer than **6 live worker panes**, or the plan's lower
 7. **Update the scratchpad:** pane, model, worktree, `dispatched`.
 
 While workers run, keep working on review packages, merges and reports. When idle, wait in bounded stretches and reconcile `herdr agent list` with the scratchpad.
+
+### ClickUp events
+
+Right after you write a state in the scratchpad, send the matching event to `clickup` as one background prompt, batching the events that happened together:
+
+```bash
+herdr agent prompt clickup "T-004 → in progress | pane <id>, model sonnet" --wait --timeout 600000
+```
+
+| Scratchpad moment | Event |
+|---|---|
+| Dispatched | `in progress` |
+| Report read, review starts | `in review` |
+| Merged | `integrated` |
+| Full gate green | `verified` |
+| Blocked on something you cannot fix at once | `blocked`, with the reason |
+| Plan edited (new task IDs, a fix or split task, changed criteria or dependencies) | `plan revised`, with the changed fields |
+
+- Each line is `T-0NN → <state> | <evidence: commit, report path or gate result>`. Never send secrets or PII.
+- Send an event only after you have verified the state. A worker's claim is not an event.
+- Never wait on ClickUp: no dispatch, merge or gate depends on its answer.
+- Read the worker's reply (`STATUS` and the map). If it reports a failure, queue the events in the scratchpad and apply "ClickUp MCP fails" below.
 
 ## Accepting a Task
 
@@ -125,6 +177,8 @@ Accept a task only when every check below passes, in order:
 | `blocked` on a tool-permission prompt | Do not answer it. Read the pane, then tell the user, or change the dispatch deliberately. |
 | An optional UI dialog that grants nothing (e.g. "Teach auto mode about your environment?") | Confirm what it is with `herdr agent read`, then pick "Not now" with `send-keys` (`down`, `enter`). It does not change permissions or config. |
 | Vault MCP fails mid-run | Tell the user, record it, and try one reconnect. Tasks whose packages need new vault excerpts wait. Excerpts already quoted this run may be reused only if the notes were not edited since. Queue vault writes in the scratchpad. Never read the vault from disk. |
+| ClickUp MCP fails mid-run, or the `clickup` worker errors or stalls | Tell the user, record it, and try one reconnect or restart of the worker with the same prompt and map file. Meanwhile queue the events in the scratchpad (task, state, evidence) and keep going. After recovery, send the queue as one batch. Never answer its permission prompts, and never write to ClickUp yourself or from a task worker. |
+| ClickUp board differs from the scratchpad (a task missing, duplicated or in another status) | The scratchpad wins. Send a `plan revised` or state event that corrects it, and read the board back. |
 | Integration gate red after a merge | Stop further merges and find the cause with systematic-debugging. Never edit tests just to make them green. |
 | ↳ cause is shared and yours (often a test helper that does not know a new table) | Fix it in an orchestrator commit on the coordination branch, then run the gate again. |
 | ↳ cause is the merged task's own code | Send a fix round on its task branch and merge again. If other merges are waiting, `git revert -m 1 <merge>` first; never `reset --hard`. |
@@ -153,6 +207,8 @@ DAG deviations are allowed when they are provably safe; for example, a read-only
    - Turn its Critical and Important findings into fix tasks (the next IDs) and record the deferred Minor ones as debt.
    - **New task IDs** (fix tasks, split tasks, hits from Learning Across Tasks): before packaging, append a full `### Task T-0NN: <title>` section with its header line to the plan under `## Tasks`, replacing its reserved slot. Record it as a D-number. Packages always come from the plan, never hand-written.
 2. Run the final gate, including the browser smoke test, and record the commit.
+   - For UI plans, also run the plan's **Final verification**: the E2E, usability and motion pass on desktop and mobile. Read its findings report and open the screenshots yourself; a worker's "PASS" is a claim.
+   - Check the usability criteria and the motion audit (durations, easings, reduced motion, hover gating) against the plan's `Animation guidelines`. Critical and Important findings become fix tasks; Minor ones are debt. Design improvement proposals go to the user; do not apply them.
 3. If the user asked for a local run:
    - pass secrets as process environment from a 0600 file in the session scratchpad;
    - never edit `.env` without permission;
@@ -162,14 +218,15 @@ DAG deviations are allowed when they are provably safe; for example, a read-only
    - move notes from proposed to shipped, with sources;
    - add an ADR for each decision and a failure note for each lesson;
    - update `last-sync`, run the validator, and queue anything that fails in the scratchpad.
-5. Close only the panes this run created. Keep worktrees, branches and databases until the user confirms cleanup.
-6. Update the scratchpad and, if the project keeps one, the daily log (one line per milestone during the run, not only at the end). Give the user the result, the checks run, limitations, remaining work and live resources. Push, PR or merge to `main` only with explicit authorization.
+5. **ClickUp final sync** (if the worker ran): send the last events, including the `verified` states and the cross-cutting review's fix tasks and deferred debt. Read the board back (`clickup_filter_tasks` on the list) and compare it with the scratchpad's tasks table. Record the result in the scratchpad's ClickUp section; if they differ, say which tasks. Then `/exit` the worker.
+6. Close only the panes this run created. Keep worktrees, branches and databases until the user confirms cleanup.
+7. Update the scratchpad and, if the project keeps one, the daily log (one line per milestone during the run, not only at the end). Give the user the result, the checks run, limitations, remaining work and live resources. Push, PR or merge to `main` only with explicit authorization.
 
 ## Status and Resume
 
 For "status", "qué falta" or "continuá":
 1. Start from the scratchpad.
-2. Verify it against `git worktree list`, `git log`, `herdr agent list` and the report dir. A recorded status does not prove a process is alive.
+2. Verify it against `git worktree list`, `git log`, `herdr agent list` and the report dir. A recorded status does not prove a process is alive. If the `clickup` worker is gone, restart it with its first prompt and `clickup-map.json`, then send the queued events plus the current state of every task.
 3. Answer with progress, remaining work, blockers and the next action.
 
 ## Quick Reference
@@ -194,4 +251,9 @@ These thoughts mean stop:
 | "The gate failure isn't from this task, merge the next one" | A red gate stops the merges until it is understood and fixed |
 | "I'll answer the worker's permission prompt to save time" | Never answer another agent's permission request |
 | "Quick fix it in the worker's worktree myself" | Fix rounds go through a worker; you fix only what you own, on the coordination branch |
+| "The plan says TypeORM and the repo has Prisma, I'll follow the plan" | Conflicts go to the user in the stack confirmation, before anything is created |
+| "The user is in a hurry, skip the stack table" | Urgency shortens the question; it does not skip it |
 | "Cleanup worktrees and branches now" | Only after the user confirms |
+| "I'll update ClickUp myself, it's one call" | Only the `clickup` worker writes to the board; you send events |
+| "ClickUp says Done, so it's done" | The scratchpad is the source of truth; ClickUp mirrors verified states |
+| "Wait for ClickUp before dispatching" | ClickUp never gates a wave; queue the events and continue |

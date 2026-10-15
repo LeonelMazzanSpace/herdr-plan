@@ -39,8 +39,19 @@ Not for: plans executed in one session (use superpowers:writing-plans alone), or
    - User urgency ("armá el plan ya") does not skip this check. It makes the question one line long.
    - While waiting for an answer, continue work that does not need the vault, such as tooling checks and listing open decisions.
    - During planning, the vault is only read. Write to it only to create it, if the user accepted; decisions reach the vault at the closing sync.
-4. **Tooling, verified, not remembered.** Run `herdr --help`, `herdr agent`, `claude --help`, `herdr integration status`, and `herdr pane layout --pane "$HERDR_PANE_ID"` (your pane id and the terminal width). Record the exact launch flags you will put in the plan.
-5. **Decisions.** List every decision the spec leaves open.
+4. **ClickUp board check.** The plan includes a ClickUp sync worker that mirrors task progress to the project's board. Confirm that the ClickUp MCP is connected (`claude mcp list`) and its `clickup_*` tools are listed. Then find the project's board read-only (`clickup_search`, `clickup_get_workspace_hierarchy`, `clickup_get_list`): record the list id, its exact status names and any board link already in the scratchpad.
+
+   | Outcome | Action |
+   |---|---|
+   | One matching board | Record it as a `to confirm` decision: list id, status mapping (below) and permission to create one ClickUp task per plan task. Creating tasks is outward-facing, so nothing is written to ClickUp during planning. |
+   | Several candidates, or none | Ask the user which list to use, or whether to create one. Never create folders or lists on your own. |
+   | MCP not connected or failing | Tell the user and record the blocker. Ask whether to fix it first or plan with `**ClickUp:** none`. |
+   | The user declines ClickUp | Plan with `**ClickUp:** none` and omit the sync worker. |
+
+   - The status mapping assigns each ClickUp status to a task state: `planned`, `in progress`, `in review`, `integrated`, `verified`, `blocked`. Use only status names the list actually has; if one is missing, record that and map to the closest one, never invent statuses.
+   - ClickUp is a mirror. The scratchpad stays the source of truth, and ClickUp never gates a wave.
+6. **Tooling, verified, not remembered.** Run `herdr --help`, `herdr agent`, `claude --help`, `herdr integration status`, and `herdr pane layout --pane "$HERDR_PANE_ID"` (your pane id and the terminal width). Record the exact launch flags you will put in the plan, including how the ClickUp sync worker is allowed to call the `clickup_*` tools (`--allowedTools` or the permission mode).
+7. **Decisions.** List every decision the spec leaves open.
    - A decision **changes scope** if it changes what users can do or see, the data users enter or receive, cost, external services, or security exposure. Ask the user about those, e.g. time zones for bookings, stock rules, who can see what.
    - Everything else is routine: internal naming, library choice within the stack, file layout. Adopt it yourself with status `adopted by orchestrator`.
    - When the spec, the vault and the user disagree, record the discrepancy; the user's current instruction wins.
@@ -56,7 +67,7 @@ Use these headings **exactly** and in this order. They are the contract with the
 | `## Decisions recorded for this plan` | Table: `# · Decision · Source · Status` (`approved` / `adopted by orchestrator` / `to confirm`). IDs D1…Dn continue during execution. | yes |
 | `## Global Constraints` | writing-plans rules + ownership rules (below). | yes |
 | `## Review Focus` | writing-plans rules; each item names the owning task in brackets. | yes |
-| `## Orchestration (orchestrator-only section)` | Waves/DAG, model table, launch recipe, acceptance, integration gate. Template: `orchestration-section-template.md`. | no |
+| `## Orchestration (orchestrator-only section)` | Waves/DAG, model table, launch recipe, ClickUp sync, acceptance, integration gate. Template: `orchestration-section-template.md`. | no |
 | `## Worker environment` | What a worker's checkout looks like: branch naming, its own DB/ports/env var names, how to run commands, "no long-running servers". | yes |
 | Contract sections (`## Data contract`, `## HTTP contract`, `## Frontend route map`, …) | Fixed shared contracts: schemas, endpoints with exact shapes, error codes, routes, shared copy. | only those a task lists |
 | `## Tasks` | `### Task T-000: …` … one per task. | only its own task |
@@ -97,6 +108,22 @@ The rest of the task follows the writing-plans task template: Files, Interfaces,
   - **Usage limits:** every worker is a full session drawing on the same account quota.
 
   Plan fewer than 6 when the suites are heavy or the machine is small, and record the reason. Reviewers normally reuse the implementer's pane after `/exit`, so 6 implementers are possible. Planning 4–5 leaves panes for fix workers and for reviewers that keep the implementer alive.
+- **ClickUp sync worker.** When the board check found a board and the user confirmed it, plan one long-lived Claude worker, `clickup`, whose only job is to mirror task state to that board through the ClickUp MCP.
+  - It is the only writer to ClickUp. Task workers and reviewers never know about ClickUp, and the plan's tasks and packages do not mention it.
+  - It covers the whole lifecycle: it creates the tasks and then keeps editing them. The orchestrator starts it in the preflight, before T-000, and sends it batches of events: plan created, plan revised (tasks added, removed, retitled, or acceptance criteria or dependencies changed), task dispatched, report accepted (in review), merged and gate green (integrated), final verification (verified), blocked. Each event names the task ID, the new state or the changed fields, and a one-line note with the evidence (commit, report path, gate result).
+  - The worker maps T-IDs to ClickUp task ids in `$report_dir/clickup-map.json`. On "plan created" it creates one task per plan task in the confirmed list, with the title, the acceptance criteria and the dependencies, then reports the map back. On every later event it edits the mapped task: status via `clickup_update_task`, description and dependencies when the plan is revised, and a comment (`clickup_create_task_comment`) with the evidence. A T-ID missing from the map is created first, never duplicated; a task that left the plan is closed with a comment, not deleted.
+  - It has no code access, so it runs in `$report_dir` without `--add-dir` of any worktree. Model: `haiku`, because the work is mechanical with a fixed mapping; the fallback is `sonnet`, verified at T-000 like any alias.
+  - It counts toward the 6-live-pane cap. Plan at most 5 implementers or reviewers at once, and say so in the Waves line.
+  - Its limits are written in the plan: it touches only tasks of this run in the confirmed list; it never deletes tasks or comments, never creates lists or folders, never changes assignees, due dates or other people's tasks, and never writes secrets or PII.
+  - If the MCP fails, the worker reports it. The orchestrator queues the pending updates in the scratchpad and continues; no wave waits for ClickUp. The scratchpad records ClickUp sync separately from task status, and never says "synced" without reading the board back.
+  - Close its pane at the end of the run, after the last event is applied and read back.
+- **E2E, usability and motion task (plans with a UI).** After the last feature task, plan one task `E2E, usability and motion pass`, on `sonnet` (`opus` if the app has payments or auth flows). It is test-and-evidence only: it adds files under the e2e folder and writes a findings report, and never edits app code. Its findings become fix tasks. Its Contracts list includes `Animation guidelines`, copied from `animations-guidelines.md` in this skill.
+  - **Functional E2E:** the critical flows of each role, on a desktop viewport and a mobile viewport (touch enabled), against local servers on the worker's own ports.
+  - **Usability, as tasks, not pages.** For each role, write 3–5 goal-based tasks in the plan (e.g. "a client books a class and pays"), each with a measurable pass criterion: reachable in at most N steps, a visible response to every action (loading, success, error), error messages that say what to do next, empty, loading and error states present, keyboard reachability and visible focus, touch targets of at least 44px on mobile, and no horizontal scroll at 360px. Each failed criterion is a finding with a screenshot.
+  - **Motion audit** against the Animation guidelines, using the "Checks" table in that file: durations, allowed easings, hover transitions gated by `(hover: hover) and (pointer: fine)`, `prefers-reduced-motion` run, origin-aware popovers, transform and opacity only. Run key flows with `reducedMotion: 'reduce'` as well.
+  - **Evidence:** a Playwright run with screenshots (and a trace or video for the transitions it judged). Findings are classified Critical, Important or Minor like review findings; a worker may not waive one.
+  - **Design improvement notes.** Where the audit shows the design system could be better (inconsistent durations, missing states, weak feedback), the report lists them as proposals, labeled as proposals, never applied by this task.
+  - A plan without UI omits the task and says so in the Orchestration section.
 - **Closing tasks.** Plan a read-only cross-cutting review on the most capable model, after the last feature task. Reserve IDs after it for fix tasks. Add "Orchestrator closing steps": local run if asked, final gate, vault sync, handoff. Push, PR and merge to a shared branch are listed as "only with explicit authorization".
 
 ## Model Per Task
@@ -129,12 +156,15 @@ Run these on top of writing-plans' self-review:
 4. Every task's Verify step runs with only the Worker environment variables.
 5. Every Review Focus item names a task, and that task has the test.
 6. Decision statuses are honest: `approved` only if the user or the spec approved it; `adopted by orchestrator` only for routine decisions; every scope-changing decision the user has not answered says `to confirm`.
+7. ClickUp: the Orchestration section has the sync block (list id, status mapping, launch, event table) or says `**ClickUp:** none` with the reason; the board and task creation are a `to confirm` decision until the user answers; no task, package or Worker environment mentions ClickUp.
+
+8. UI plans: the `## Animation guidelines` contract section exists, every UI task lists it in its Contracts, and the E2E, usability and motion task has usability tasks with measurable criteria for every role. A plan without UI says so.
 
 ## Handoff
 
 1. Save the plan to `docs/superpowers/plans/YYYY-MM-DD-<name>.md`, unless the project says otherwise.
 2. Save the summary next to it.
-3. Update the scratchpad: links, decisions, tasks table with status `planned`, and remaining work.
+3. Update the scratchpad: links, decisions, tasks table with status `planned`, ClickUp board and sync status (`not started`, or `none`), and remaining work.
 4. Ask the user to review the plan and confirm every `to confirm` decision.
 5. If the user asked only for a plan, stop here. Execution uses **executing-herdr-plans**. This replaces writing-plans' "Execution Handoff" choice between subagent-driven and native execution: do not offer those.
 
@@ -149,3 +179,7 @@ Run these on top of writing-plans' self-review:
 | Model chosen once for all tasks | Model per task with a rationale; escalate on repeated failure |
 | Dependencies added by whichever task first needs them | All in T-000; a worker needing one stops with BLOCKED |
 | No final cross-cutting review | Read-only opus review plus reserved fix task IDs |
+| Orchestrator or task workers update ClickUp themselves | Only the `clickup` sync worker writes to the board; the orchestrator sends it events |
+| E2E step that only clicks through happy paths and asserts "page loads" | Usability tasks with measurable criteria per role, plus the motion audit; both produce screenshots and a findings report |
+| Animation rules left to each UI worker's taste | `## Animation guidelines` as a contract section in every UI task |
+| Creating ClickUp tasks while planning, or guessing the list | Ask which list; tasks are created at execution, after the user confirms the decision |

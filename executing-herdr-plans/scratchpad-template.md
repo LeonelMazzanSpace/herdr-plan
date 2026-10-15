@@ -13,7 +13,7 @@ Status words have fixed meanings:
 - `verified` â€” the gate passed after the merge;
 - `completed` â€” all of the above, with the acceptance criteria met.
 
-Track vault sync separately. When the file grows large, move old history to `.claude/scratchpad-history/<date>-<run>.md`, link it, and keep only the current state, open decisions, blockers and recovery steps.
+Track vault sync and ClickUp sync separately; never write `synced` for ClickUp without reading the board back. When the file grows large, move old history to `.claude/scratchpad-history/<date>-<run>.md`, link it, and keep only the current state, open decisions, blockers and recovery steps.
 
 ```markdown
 # Scratchpad â€” <project>
@@ -29,6 +29,7 @@ Updated: <YYYY-MM-DD HH:MM TZ> | Run: <run-id> | Status: <planning | executing â
 <COORDINATION_ROOT, coordination branch and base, spec, plan, plan summary, vault and notes read>
 <Verified versions: herdr, Claude Code (launch flags), Superpowers, vault MCP; failed MCPs and the workaround>
 <Report dir; worktree root; database naming>
+<Stack confirmed: <date> by the user, D-numbers of the choices; conflicts and undecided rows found and how they were resolved; "pending" while waiting>
 
 ## Tasks and agents
 | ID | Task | Status | Dependencies | Agent/pane | Model/rationale (effective) | Worktree/branch | Evidence |
@@ -45,6 +46,10 @@ Updated: <YYYY-MM-DD HH:MM TZ> | Run: <run-id> | Status: <planning | executing â
 
 ## Obsidian synchronization
 <Notes consulted, verified changes, queued updates if the MCP failed>
+
+## ClickUp synchronization
+<Board (list id and name) or "none"; sync status: not started | started | degraded (MCP failing) | final sync done; `clickup` pane and model; map file path>
+<Last event sent and verified; queued events if the MCP failed (task, state, evidence); differences found when the board was read back>
 
 ## Next steps and recovery
 <Immediate sequence; live agents and panes; unintegrated work; how to resume: read this file + plan, `git worktree list`, `herdr agent list`, reports in <report-dir>>
