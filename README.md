@@ -68,6 +68,29 @@ El plan copia la guía como sección `## Animation guidelines` y la lista en los
   - un MCP de Obsidian, si el proyecto tiene vault;
   - el MCP de ClickUp, si el plan espeja el avance en un tablero (un worker `clickup` crea y edita las tareas).
 
+### Setup
+
+1. Herdr y Claude Code instalados. Verificá con `herdr --version` y `claude --version`.
+2. Integración de Herdr con Claude Code:
+
+   ```bash
+   herdr integration install claude
+   herdr integration status      # debe mostrar: claude: current
+   ```
+
+3. Skills de Herdr:
+
+   ```bash
+   npx skills add herdrdev/herdr --skill herdr -g
+   npx skills add aerain/herdr-agent-orchestration -g -s herdr-agent-orchestration -a claude-code
+   ```
+
+4. Superpowers, dentro de Claude Code:
+
+   ```
+   /plugin install superpowers@claude-plugins-official
+   ```
+
 ## Instalación
 
 Cloná el repo y enlazá cada skill en tu carpeta personal de skills, desde la raíz del repo:
