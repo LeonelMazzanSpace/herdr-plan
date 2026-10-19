@@ -2,7 +2,7 @@
 
 `COORDINATION_ROOT/SCRATCHPAD.md` has one writer: the orchestrator. It is the compact, factual view of the whole run. Timestamp every update with date, time and time zone. Write the state first, then report to the user.
 
-Update it after each of these: creating or revising the plan, delegating, receiving a result, a decision, a merge, a gate, a blocker. Also update it before the session ends or before an expected context compaction.
+Update it after each of these: creating or revising the plan, delegating, receiving a result, a decision, a merge, a gate, a blocker, a context check. Also update it before the session ends and before a hand-off (`handoff-template.md`); the run never relies on context compaction.
 
 Working states: `planned`, `dispatched`, `blocked` (say on what), `in review`, `changes required` (fix round N).
 
@@ -17,7 +17,7 @@ Track vault sync and ClickUp sync separately; never write `synced` for ClickUp w
 
 ```markdown
 # Scratchpad — <project>
-Updated: <YYYY-MM-DD HH:MM TZ> | Run: <run-id> | Status: <planning | executing — wave N | completed — …>
+Updated: <YYYY-MM-DD HH:MM TZ> | Run: <run-id> | Orchestrator: orch-<N> (pane <id>) · ctx <NN>% at <HH:MM> | Status: <planning | executing — wave N | completed — …>
 
 ## Objective and current scope
 <Expected result, boundaries, and overall completion criteria>
@@ -53,6 +53,7 @@ Updated: <YYYY-MM-DD HH:MM TZ> | Run: <run-id> | Status: <planning | executing �
 
 ## Next steps and recovery
 <Immediate sequence; live agents and panes; unintegrated work; how to resume: read this file + plan, `git worktree list`, `herdr agent list`, reports in <report-dir>>
+<Hand-off entries (`handoff-template.md`), newest last; each must be matched by a `Resumed by orch-N` line in Recent activity>
 
 ## Recent activity
 <YYYY-MM-DD HH:MM TZ — task/event — result — evidence>
