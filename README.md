@@ -1,112 +1,112 @@
-# Skills de orquestación con Herdr
+# Herdr orchestration skills
 
-Dos skills para Claude Code que separan del `CLAUDE.md` del proyecto la forma de trabajo de una corrida orquestada. Un orquestador Claude planifica y coordina workers Claude Code independientes en paneles de Herdr, cada uno en su propio worktree de git.
+Two Claude Code skills that move the way an orchestrated run works out of the project's `CLAUDE.md`. A Claude orchestrator plans and coordinates independent Claude Code workers in Herdr panes, each in its own git worktree.
 
-| Skill | Cuándo se usa |
+| Skill | When it is used |
 |---|---|
-| [`writing-herdr-plans/`](writing-herdr-plans/SKILL.md) | Para escribir el plan de implementación a partir de una spec aprobada. Usa `superpowers:writing-plans` como base y le suma las decisiones, los contratos fijos, las olas con modelo por tarea, el entorno de cada worker y los encabezados fijos. |
-| [`executing-herdr-plans/`](executing-herdr-plans/SKILL.md) | Para ejecutar ese plan: confirmar el stack, preparar los worktrees, generar los paquetes, lanzar los workers, aceptar, revisar, integrar con gate, cerrar la corrida y retomarla. |
+| [`writing-herdr-plans/`](writing-herdr-plans/SKILL.md) | To write the implementation plan from an approved spec. It builds on `superpowers:writing-plans` and adds the decisions, fixed contracts, waves with a model per task, each worker's environment and the fixed headings. |
+| [`executing-herdr-plans/`](executing-herdr-plans/SKILL.md) | To execute that plan: confirm the stack, prepare the worktrees, generate the packages, launch the workers, accept, review, integrate behind a gate, close the run and resume it. |
 
-Se usan juntos: el primero escribe el plan con encabezados fijos y el segundo los usa para cortar el paquete de cada worker.
+They are used together: the first writes the plan with fixed headings and the second uses them to cut each worker's package.
 
-## Flujo
+## Flow
 
-1. **Planificar** (`writing-herdr-plans`): del spec aprobado sale el plan con decisiones, contratos, olas y una tarea por worker, más un resumen en el idioma del usuario.
-2. **Confirmar el stack** (`executing-herdr-plans`, preflight): antes de crear nada, el orquestador lee el repo y el plan y te muestra una tabla de librerías y arquitectura (ORM, base de datos, migraciones, auth, frontend, tests, CI, estructura). Marca conflictos entre repo y plan, decisiones que faltan y librerías que una tarea usa y T-000 no instala. Vos confirmás o corregís; es la única parada inicial.
-3. **Ejecutar solo**: el orquestador corre el plan ola por ola. Cada tarea la implementa un worker, la revisa otro y se integra con un gate completo después de cada merge.
-4. **Verificar y cerrar**: en los planes con interfaz hay un paso final de E2E, usabilidad y animaciones, una review transversal, la sincronización del vault y del tablero, y el resumen para el usuario.
+1. **Plan** (`writing-herdr-plans`): the approved spec becomes a plan with decisions, contracts, waves and one task per worker, plus a summary in the user's language.
+2. **Confirm the stack** (`executing-herdr-plans`, preflight): before creating anything, the orchestrator reads the repo and the plan and shows you a table of libraries and architecture (ORM, database, migrations, auth, frontend, tests, CI, structure). It flags conflicts between repo and plan, missing decisions, and libraries a task uses that T-000 does not install. You confirm or correct; it is the only initial stop.
+3. **Execute on its own**: the orchestrator runs the plan wave by wave. One worker implements each task, another reviews it, and it is integrated behind a full gate after every merge.
+4. **Verify and close**: plans with an interface get a final step covering E2E, usability and animations, a cross-cutting review, vault and board sync, and the summary for the user.
 
-## Qué incluye cada skill
+## What each skill includes
 
 ```
 writing-herdr-plans/
-├── SKILL.md                          Reglas del plan, modelo por tarea, self-review
-├── orchestration-section-template.md Secciones Orchestration y Worker environment
-└── animations-guidelines.md          Guía de animaciones (sección "Animation guidelines" del plan)
+├── SKILL.md                          Plan rules, model per task, self-review
+├── orchestration-section-template.md Orchestration and Worker environment sections
+└── animations-guidelines.md          Animation guide ("Animation guidelines" section of the plan)
 
 executing-herdr-plans/
-├── SKILL.md                          Preflight, loop de olas, aceptación, cierre, reanudación
-├── scratchpad-template.md            Plantilla de SCRATCHPAD.md
-├── fix-round-template.md             Plantilla de las rondas de fix
+├── SKILL.md                          Preflight, wave loop, acceptance, closing, resuming
+├── scratchpad-template.md            SCRATCHPAD.md template
+├── fix-round-template.md             Fix round template
 └── scripts/
-    ├── make-package.sh               Paquete de un worker, cortado del plan
-    └── make-review-package.sh        Paquete del reviewer (solo lectura)
+    ├── make-package.sh               A worker's package, cut from the plan
+    └── make-review-package.sh        The reviewer's package (read-only)
 ```
 
-### Confirmación de stack
+### Stack confirmation
 
-Es el paso 4 del preflight de `executing-herdr-plans`. Cada fila de la tabla tiene un estado:
+It is step 4 of the `executing-herdr-plans` preflight. Each row of the table has a status:
 
-| Estado | Significado |
+| Status | Meaning |
 |---|---|
-| `confirmed` | El repo y el plan coinciden, o solo uno lo nombra y el otro no lo contradice. |
-| `conflict` | El repo y el plan, o el plan y los defaults de la empresa, no coinciden (por ejemplo el repo usa Prisma y el plan dice TypeORM). |
-| `undecided` | Una tarea lo necesita y nadie lo nombró. |
-| `redundant` | El repo tiene dos librerías para el mismo trabajo. |
+| `confirmed` | The repo and the plan agree, or only one names it and the other does not contradict it. |
+| `conflict` | The repo and the plan, or the plan and the company defaults, disagree (for example the repo uses Prisma and the plan says TypeORM). |
+| `undecided` | A task needs it and nobody named it. |
+| `redundant` | The repo has two libraries for the same job. |
 
-Solo se pregunta por `conflict`, `undecided` y `redundant`, con una recomendación y un tradeoff de una línea. Lo confirmado queda como decisión `approved` en el plan y en el scratchpad. Si tu respuesta cambia el plan, se revisa antes de empezar.
+You are only asked about `conflict`, `undecided` and `redundant`, with a recommendation and a one-line tradeoff. Whatever is confirmed is recorded as an `approved` decision in the plan and the scratchpad. If your answer changes the plan, it is revised before starting.
 
-### E2E, usabilidad y animaciones
+### E2E, usability and animations
 
-En los planes con interfaz, `writing-herdr-plans` agrega una tarea después de la última feature. Solo escribe tests e informe, nunca toca el código de la app:
+In plans with an interface, `writing-herdr-plans` adds a task after the last feature. It only writes tests and a report, and never touches the app's code:
 
-- E2E funcional de los flujos críticos de cada rol, en desktop y en mobile con touch;
-- tareas de usabilidad por rol con criterios medibles (pasos máximos, feedback visible, estados vacío, carga y error, foco por teclado, targets táctiles de al menos 44px, sin scroll horizontal a 360px);
-- auditoría de movimiento contra [`animations-guidelines.md`](writing-herdr-plans/animations-guidelines.md): duraciones, easings permitidos, hover solo en dispositivos con hover, `prefers-reduced-motion`, animaciones que nacen del disparador, solo `transform` y `opacity`;
-- capturas y un informe de hallazgos. Los Critical e Important pasan a tareas de fix; las mejoras de diseño quedan como propuestas.
+- functional E2E of each role's critical flows, on desktop and on mobile with touch;
+- usability tasks per role with measurable criteria (maximum steps, visible feedback, empty, loading and error states, keyboard focus, touch targets of at least 44px, no horizontal scroll at 360px);
+- a motion audit against [`animations-guidelines.md`](writing-herdr-plans/animations-guidelines.md): durations, allowed easings, hover only on hover-capable devices, `prefers-reduced-motion`, animations that originate from their trigger, only `transform` and `opacity`;
+- screenshots and a findings report. Critical and Important findings become fix tasks; design improvements stay as proposals.
 
-El plan copia la guía como sección `## Animation guidelines` y la lista en los Contracts de cada tarea de UI.
+The plan copies the guide as an `## Animation guidelines` section and lists it in the Contracts of each UI task.
 
-## Requisitos
+## Requirements
 
-- Herdr, con la integración de Claude (`herdr integration install claude`), y el orquestador corriendo dentro de un panel (`HERDR_ENV=1`);
+- Herdr, with the Claude integration (`herdr integration install claude`), and the orchestrator running inside a pane (`HERDR_ENV=1`);
 - Claude Code;
-- los skills `herdr` y `herdr-agent-orchestration`;
-- el plugin Superpowers (`superpowers:writing-plans`, `verification-before-completion`, `receiving-code-review`, `systematic-debugging`);
-- bash. Los scripts funcionan con el bash 3.2 de macOS;
-- opcionales:
-  - un MCP de Obsidian, si el proyecto tiene vault;
-  - el MCP de ClickUp, si el plan espeja el avance en un tablero (un worker `clickup` crea y edita las tareas).
+- the `herdr` and `herdr-agent-orchestration` skills;
+- the Superpowers plugin (`superpowers:writing-plans`, `verification-before-completion`, `receiving-code-review`, `systematic-debugging`);
+- bash. The scripts work with macOS's bash 3.2;
+- optional:
+  - an Obsidian MCP, if the project has a vault;
+  - the ClickUp MCP, if the plan mirrors progress on a board (a `clickup` worker creates and edits the tasks).
 
 ### Setup
 
-1. Herdr y Claude Code instalados. Verificá con `herdr --version` y `claude --version`.
-2. Integración de Herdr con Claude Code:
+1. Herdr and Claude Code installed. Check with `herdr --version` and `claude --version`.
+2. Herdr integration with Claude Code:
 
    ```bash
    herdr integration install claude
-   herdr integration status      # debe mostrar: claude: current
+   herdr integration status      # must show: claude: current
    ```
 
-3. Skills de Herdr:
+3. Herdr skills:
 
    ```bash
    npx skills add herdrdev/herdr --skill herdr -g
    npx skills add aerain/herdr-agent-orchestration -g -s herdr-agent-orchestration -a claude-code
    ```
 
-4. Superpowers, dentro de Claude Code:
+4. Superpowers, inside Claude Code:
 
    ```
    /plugin install superpowers@claude-plugins-official
    ```
 
-## Instalación
+## Installation
 
-Cloná el repo y enlazá cada skill en tu carpeta personal de skills, desde la raíz del repo:
+Clone the repo and link each skill into your personal skills folder, from the repo root:
 
 ```bash
 ln -s "$PWD/writing-herdr-plans" ~/.claude/skills/writing-herdr-plans
 ln -s "$PWD/executing-herdr-plans" ~/.claude/skills/executing-herdr-plans
 ```
 
-Para usarlos solo en un proyecto, enlazalos en la carpeta `.claude/skills/` de ese proyecto.
+To use them in a single project only, link them into that project's `.claude/skills/` folder.
 
-Los scripts de `executing-herdr-plans/scripts/` se ejecutan con `bash <script>`, nunca por su ruta directa.
+The scripts in `executing-herdr-plans/scripts/` are run with `bash <script>`, never by their direct path.
 
-## Uso
+## Usage
 
-- Pedí "armá el plan para ejecutarlo con herdr" a partir de un spec aprobado y se usa `writing-herdr-plans`.
-- Pedí "ejecutá el plan", "status" o "continuá" y se usa `executing-herdr-plans`. Retoma desde `SCRATCHPAD.md`.
+- Ask "write the plan to execute it with herdr" from an approved spec and `writing-herdr-plans` is used.
+- Ask "execute the plan", "status" or "continue" and `executing-herdr-plans` is used. It resumes from `SCRATCHPAD.md`.
 
-Las decisiones que cambian el alcance, las acciones destructivas o sensibles y los push, PR o merges a ramas compartidas siempre pasan por vos. El resto lo decide el orquestador y lo registra como decisión numerada.
+Decisions that change scope, destructive or sensitive actions, and pushes, PRs or merges into shared branches always go through you. The orchestrator decides everything else and records it as a numbered decision.
