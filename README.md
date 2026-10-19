@@ -14,6 +14,7 @@ They are used together: the first writes the plan with fixed headings and the se
 1. **Plan** (`writing-herdr-plans`): the approved spec becomes a plan with decisions, contracts, waves and one task per worker, plus a summary in the user's language.
 2. **Confirm the stack** (`executing-herdr-plans`, preflight): before creating anything, the orchestrator reads the repo and the plan and shows you a table of libraries and architecture (ORM, database, migrations, auth, frontend, tests, CI, structure). It flags conflicts between repo and plan, missing decisions, and libraries a task uses that T-000 does not install. You confirm or correct; it is the only initial stop.
 3. **Execute on its own**: the orchestrator runs the plan wave by wave. One worker implements each task, another reviews it, and it is integrated behind a full gate after every merge.
+   - The orchestrator reads its own context usage from its Herdr pane. At 70% it writes a hand-off entry in `SCRATCHPAD.md`, starts a relief orchestrator in a new pane, waits for it to confirm, and leaves; the relief closes the old pane and continues. It never relies on context compaction. Your status line must show the percentage (`ctx:N%`).
 4. **Verify and close**: plans with an interface get a final step covering E2E, usability and animations, a cross-cutting review, vault and board sync, and the summary for the user.
 
 ## What each skill includes
@@ -28,6 +29,7 @@ executing-herdr-plans/
 ├── SKILL.md                          Preflight, wave loop, acceptance, closing, resuming
 ├── scratchpad-template.md            SCRATCHPAD.md template
 ├── fix-round-template.md             Fix round template
+├── handoff-template.md               Hand-off to a relief orchestrator (scratchpad entry + prompt)
 └── scripts/
     ├── make-package.sh               A worker's package, cut from the plan
     └── make-review-package.sh        The reviewer's package (read-only)
