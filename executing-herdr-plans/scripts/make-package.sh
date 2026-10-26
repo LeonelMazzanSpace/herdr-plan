@@ -8,7 +8,14 @@
 #     --base <sha> --coord <COORDINATION_ROOT> --coord-branch <coordination-branch> \
 #     [--vault-excerpts <file>] [--contracts "Data contract,HTTP contract"] \
 #     [--deps "<text>"] [--env "<text>"] [--notes <file>] [--attempt N] \
-#     [--role implement|review]
+#     [--role implement|review] [--kind code|findings|document]
+#
+# --kind is the task kind; it defaults to the task's **Kind:** header field, or
+# code when there is none. A flag that contradicts the header is an error.
+# findings and document tasks have no worktree: they take --plan --task --model
+# --why --run-id --reports --coord and reject --worktree --branch --base
+# --coord-branch. They read the sources the package lists and write only under
+# <report-dir> (the report, evidence/<task>/ or parts/<task>.md).
 #
 # --role review packages a read-only task (e.g. the cross-cutting review): no
 # edits, no commits, findings report.
@@ -24,7 +31,7 @@ set -euo pipefail
 die() { printf 'make-package: %s\n' "$1" >&2; exit 1; }
 
 PLAN= TASK= MODEL= WHY= RUN_ID= REPORTS= WT= BRANCH= BASE= COORD= COORD_BRANCH=
-VAULT= CONTRACTS= DEPS= ENV_NOTE= NOTES= ATTEMPT=1 ROLE=implement
+VAULT= CONTRACTS= DEPS= ENV_NOTE= NOTES= ATTEMPT=1 ROLE=implement KIND_FLAG=
 while [ $# -gt 0 ]; do
   [ $# -ge 2 ] || die "missing value for $1"
   case $1 in
@@ -34,12 +41,12 @@ while [ $# -gt 0 ]; do
     --coord-branch) COORD_BRANCH=$2 ;;
     --vault-excerpts) VAULT=$2 ;; --contracts) CONTRACTS=$2 ;; --deps) DEPS=$2 ;;
     --env) ENV_NOTE=$2 ;; --notes) NOTES=$2 ;; --attempt) ATTEMPT=$2 ;;
-    --role) ROLE=$2 ;;
+    --role) ROLE=$2 ;; --kind) KIND_FLAG=$2 ;;
     *) die "unknown argument: $1" ;;
   esac
   shift 2
 done
-for v in PLAN TASK MODEL WHY RUN_ID REPORTS WT BRANCH BASE COORD COORD_BRANCH; do
+for v in PLAN TASK MODEL WHY RUN_ID REPORTS COORD; do
   eval "[ -n \"\${$v}\" ]" || die "missing --$(printf '%s' "$v" | tr 'A-Z_' 'a-z-')"
 done
 case $ROLE in implement|review) ;; *) die "--role must be implement or review" ;; esac
@@ -92,6 +99,32 @@ TASK_TEXT=$(section "Task $TASK:" 3)
 header_field() {
   printf '%s\n' "$TASK_TEXT" | grep -m1 -o "\*\*$1:\*\* [^·]*" | sed -e "s/^\*\*$1:\*\* //" -e 's/[[:space:]]*$//' || true
 }
+trim() { printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
+lower() { printf '%s' "$1" | tr 'A-Z' 'a-z'; }
+valid_kind() { case $1 in code|findings|document) return 0 ;; esac; return 1; }
+
+KIND_RAW=$(trim "$(header_field Kind)")
+KIND_HEADER=$(lower "$KIND_RAW")
+KIND_FLAG=$(lower "$(trim "$KIND_FLAG")")
+[ -z "$KIND_HEADER" ] || valid_kind "$KIND_HEADER" \
+  || die "invalid Kind '$KIND_RAW' in $TASK (expected code, findings or document)"
+[ -z "$KIND_FLAG" ] || valid_kind "$KIND_FLAG" \
+  || die "invalid --kind '$KIND_FLAG' (expected code, findings or document)"
+[ -z "$KIND_HEADER" ] || [ -z "$KIND_FLAG" ] || [ "$KIND_HEADER" = "$KIND_FLAG" ] \
+  || die "--kind $KIND_FLAG contradicts Kind $KIND_HEADER in $TASK"
+KIND=${KIND_HEADER:-${KIND_FLAG:-code}}
+
+if [ "$KIND" = code ]; then
+  for v in WT BRANCH BASE COORD_BRANCH; do
+    eval "[ -n \"\${$v}\" ]" || die "missing --$(printf '%s' "$v" | tr 'A-Z_' 'a-z-')"
+  done
+else
+  [ "$ROLE" = implement ] || die "--role review is only for code tasks"
+  for pair in "worktree:$WT" "branch:$BRANCH" "base:$BASE" "coord-branch:$COORD_BRANCH"; do
+    [ -z "${pair#*:}" ] || die "--${pair%%:*} is only for code tasks"
+  done
+fi
+
 [ -n "$CONTRACTS" ] || CONTRACTS=$(header_field Contracts)
 [ -n "$DEPS" ] || DEPS=$(header_field 'Depends on')
 VAULT_NOTES=$(header_field Vault)
@@ -105,7 +138,25 @@ REPORT="$REPORTS/$TASK$SUFFIX.md"
 trap 'rm -f "$OUT.tmp"' EXIT
 DIFF_BASE="\$(git merge-base $COORD_BRANCH HEAD)"
 
-if [ "$ROLE" = review ]; then
+LOCATION_LINE="Checkout/worktree, branch, and base commit: \`$WT\` · branch \`$BRANCH\` · base \`$BASE\` (coordination branch \`$COORD_BRANCH\`)."
+ALLOWED_LINE="Allowed files and scope boundaries: exactly the \"Files\" list of your task. Do not touch dependency manifests or lockfiles (need a dependency → BLOCKED). Do not touch other worktrees, other databases or the coordination checkout."
+CHECKS_LINE="Required tests/checks: the \"Verify\" step(s) of your task, run from your worktree root, all green before committing."
+if [ "$KIND" != code ]; then
+  LOCATION_LINE="Working directory and sources (read-only): \`$COORD\` and the sources your task and Worker environment list."
+  CHECKS_LINE="Required tests/checks: the \"Verify\" step(s) of your task, all green before writing the report."
+  GIT_LINE="Git: read-only. No commits, no edits to the sources, no push/merge/rebase."
+fi
+if [ "$KIND" = findings ]; then
+  ROLE_LINE="findings_worker (read-only on sources, single task, no orchestration)"
+  OBJECTIVE="perform **only** the survey in the task section \"$TASK\" quoted at the end, verify every finding, and write the report. **Do not edit the sources and do not commit.**"
+  ALLOWED_LINE="Allowed writes: only \`$REPORT\` and \`$REPORTS/evidence/$TASK/\` (create the folder if missing). Everything else is read-only: do not edit, create or delete anything in the sources or the coordination checkout, and do not touch dependency manifests or lockfiles (need a dependency → BLOCKED)."
+  OUTPUT="Output: write \`$REPORT\` with: Task, Attempt, Status (PASS|FAIL|BLOCKED), the model you ran as (from your session/status line if visible, else \"not verified\"), the scope covered and not covered, commands run with observed results, and findings in the \"Findings format\" contract, each with the ID \`$TASK-F<NN>\` (F01, F02, ...) and its evidence saved under \`$REPORTS/evidence/$TASK/\`. No secrets, tokens, passwords or hashes in the report or the evidence."
+elif [ "$KIND" = document ]; then
+  ROLE_LINE="document_worker (single task, no orchestration)"
+  OBJECTIVE="write **only** the document part of the task section \"$TASK\" quoted at the end to \`$REPORTS/parts/$TASK.md\`, following the \"Document outline\" contract and citing a \"Sources\" entry for every claim, and write the report. **Do not edit the sources and do not commit.**"
+  ALLOWED_LINE="Allowed writes: only \`$REPORT\` and \`$REPORTS/parts/$TASK.md\` (create the folder if missing). Everything else is read-only: do not edit, create or delete anything in the sources or the coordination checkout, and do not touch dependency manifests or lockfiles (need a dependency → BLOCKED)."
+  OUTPUT="Output: write \`$REPORT\` with: Task, Attempt, Status (PASS|FAIL|BLOCKED), the model you ran as (from your session/status line if visible, else \"not verified\"), the sources consulted, and open questions. The part itself goes in \`$REPORTS/parts/$TASK.md\`. No secrets, tokens, passwords or hashes in the report or the part."
+elif [ "$ROLE" = review ]; then
   ROLE_LINE="review_worker (read-only, single task, no orchestration)"
   OBJECTIVE="perform **only** the read-only work in the task section \"$TASK\" quoted at the end and write the findings report. **Do not edit any file and do not commit.**"
   GIT_LINE="Git: read-only. No commits, no edits, no push/merge/rebase."
@@ -133,13 +184,13 @@ Acceptance criteria: the acceptance criteria and verification steps inside the t
 Relevant context and current decisions: "Decisions recorded for this plan", "Global Constraints" and "Review Focus" below.
 Obsidian notes consulted: $VAULT_LINE
 Dependencies and agreed contracts: ${DEPS:-none}. The contract sections below are fixed: do not change them. If a contract is wrong or impossible, stop and report BLOCKED with the exact problem.
-Checkout/worktree, branch, and base commit: \`$WT\` · branch \`$BRANCH\` · base \`$BASE\` (coordination branch \`$COORD_BRANCH\`).
-Allowed files and scope boundaries: exactly the "Files" list of your task. Do not touch dependency manifests or lockfiles (need a dependency → BLOCKED). Do not touch other worktrees, other databases or the coordination checkout.
+$LOCATION_LINE
+$ALLOWED_LINE
 COORDINATION_ROOT and global scratchpad (read-only): \`$COORD\` · \`$COORD/SCRATCHPAD.md\` — do not edit either.
 EOF
 [ -z "$ENV_NOTE" ] || printf 'Environment: %s\n' "$ENV_NOTE"
 cat <<EOF
-Required tests/checks: the "Verify" step(s) of your task, run from your worktree root, all green before committing.
+$CHECKS_LINE
 $GIT_LINE
 $OUTPUT
 End your final chat message with \`STATUS: PASS|FAIL|BLOCKED\` and \`REPORT: $REPORT\`. The report is authoritative.
