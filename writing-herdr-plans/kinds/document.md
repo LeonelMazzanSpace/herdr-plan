@@ -43,21 +43,21 @@ A document task replaces the TDD steps of writing-plans with the template below.
 
 ## Consolidation task
 
-Every plan with findings or document tasks has one: kind `document`, in the last wave, depending on every part.
+Every plan with findings or document tasks has one: kind `document`, in the last wave, depending on every part. `deliverables/<run-id>/parts/` holds the document parts and the integrated findings parts: for each findings task, the orchestrator copies its findings report there with the reviewer's verdicts applied (the confirmed findings, plus a "Corrected false positives" section with the not reproduced ones). The consolidation reads only that folder.
 
 ````markdown
 ### Task T-008: Consolidate the deliverable
 
 **Kind:** document · **Model:** opus · **Depends on:** T-004, T-005, T-006, T-007 integrated · **Parallel with:** none · **Contracts:** Document outline, Style guide, Sources · **Vault:** none
 
-**Part:** the whole document, written as `<report-dir>/parts/T-008.md` (the orchestrator places it as `<name>.md` in the deliverable). **Sources:** `deliverables/<run-id>/parts/` (read only).
+**Part:** the whole document, written as `<report-dir>/parts/T-008.md` (the orchestrator places it as `<name>.md` in the deliverable). **Sources:** `deliverables/<run-id>/parts/` (read only): the document parts and the integrated findings parts.
 
 **Acceptance criteria:**
-1. The document has an executive summary, every part in outline order, the confirmed findings, a "Corrected false positives" section (findings the reviewers could not reproduce) and the recommendation.
+1. The document has an executive summary, every part in outline order, the confirmed findings, a "Corrected false positives" section (gathered from the integrated findings parts) and the recommendation.
 2. No part's claim is changed; contradictions between parts are listed in the report instead of silently resolved.
 3. When the format is `html`, `<report-dir>/parts/T-008.html` is generated from the `.md`: one file, inline CSS, no network loads.
 
-- [ ] **Step 1: Read the parts.** Read every file in `deliverables/<run-id>/parts/` and the confirmed findings.
+- [ ] **Step 1: Read the parts.** Read every file in `deliverables/<run-id>/parts/`: the document parts, and the confirmed findings and "Corrected false positives" sections of the findings parts.
 - [ ] **Step 2: Write the document** in the order of criterion 1. Keep each part's text and its `[S<n>]` tags.
 - [ ] **Step 3: Render** (format `html` only): generate the `.html` from the `.md`. Never edit it by hand: fix the `.md` and generate again.
 - [ ] **Step 4: Verify.**
