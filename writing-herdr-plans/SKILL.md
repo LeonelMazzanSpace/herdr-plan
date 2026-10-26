@@ -21,7 +21,7 @@ A plan for Herdr orchestration is a `superpowers:writing-plans` plan, whatever t
 - The project's instructions define an orchestrator/worker split, a scratchpad or a delegation contract.
 - The work is an audit, research, documentation, a proposal or a migration plan that is split across workers.
 
-Not for: plans executed in one session (use superpowers:writing-plans alone), or a request that only needs analysis.
+Not for: plans executed in one session (use superpowers:writing-plans alone), or a question that needs no delegated workers.
 
 ## Before Writing
 
@@ -131,7 +131,7 @@ A plan reads only the kind files of the kinds it uses.
   - Its limits are written in the plan: it touches only tasks of this run in the confirmed list; it never deletes tasks or comments, never creates lists or folders, never changes assignees, due dates or other people's tasks, and never writes secrets or PII.
   - If the MCP fails, the worker reports it. The orchestrator queues the pending updates in the scratchpad and continues; no wave waits for ClickUp. The scratchpad records ClickUp sync separately from task status, and never says "synced" without reading the board back.
   - Close its pane at the end of the run, after the last event is applied and read back.
-- **Closing tasks.** Plan a read-only cross-cutting review on the most capable model, after the last feature task. Reserve IDs after it for fix tasks. Add "Orchestrator closing steps": local run if asked, final gate, vault sync, handoff. Push, PR and merge to a shared branch are listed as "only with explicit authorization". When the plan has findings or document tasks, add a consolidation task: a `document` task in the last wave. The cross-cutting review of a plan without code is a `findings` task over the deliverable (the read-only kind with a findings report).
+- **Closing tasks.** Plan a read-only cross-cutting review on the most capable model, after the last feature task. Reserve IDs after it for fix tasks. Add "Orchestrator closing steps": local run if asked, final gate, vault sync, handoff. Push, PR and merge to a shared branch are listed as "only with explicit authorization". When the plan has findings or document tasks, add a consolidation task: a `document` task in the last wave. The cross-cutting review of a plan without code is a `findings` task over the deliverable (the read-only kind with a findings report). The closing order is consolidation task, then cross-cutting review, then reserved fix tasks; in a mixed plan the review covers both the integrated branch and the deliverable.
 
 ## Model Per Task
 
