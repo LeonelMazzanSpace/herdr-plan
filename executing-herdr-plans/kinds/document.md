@@ -6,7 +6,7 @@ Read this when the plan has document tasks (a section of a report, a comparative
 
 Preflight step 4 for document tasks. Same shape and rules as `kinds/findings.md § Scope and access confirmation`: read-only, one table `Category · Value · Source · Status`, ask once, never approve a row for the user.
 
-   - **Rows:** sources (files, URLs, repos, with the access each needs: network hosts, credentials by name); audience; deliverable (path, format `md` or `html`, commit decision); style guide; outline (sections, exact headings, owner task of each); out of scope. Also show the worker tool allowlist you propose, including the renderer command when the format is `html`, for the user to approve.
+   - **Rows:** sources (files, URLs, repos, with the access each needs: network hosts, credentials by name); audience; deliverable (path, format `md` or `html`, commit decision); style guide; outline (sections, exact headings, owner task of each); out of scope. Also show the worker tool allowlist you propose, including a render command only if the plan names one as a decision, for the user to approve.
    - **Status:** `confirmed`, `conflict` (e.g. a task cites a source number the Sources contract lacks), `undecided` (audience or format not decided).
    - **After the answer:** D-numbers `approved`, a "Scope confirmed" line with the date in the scratchpad, plan revised first if an answer changes it. **Resume:** skip only when that line exists and the Sources, outline, style guide and deliverable decision are unchanged.
 
@@ -17,7 +17,7 @@ Preflight step 10, done by you:
    1. Create `<report-dir>/parts`, and the deliverable folder as the deliverable decision says (`deliverables/<run-id>/parts` in the coordination root, or the same layout at the outside path).
    2. Prove every source is readable (`test -r <file>`, `curl -sI -o /dev/null -w '%{http_code}\n' <url>`).
    3. Record the sources baseline for each repo source, exactly as in `kinds/findings.md § T-000 for this kind` (step 3), and note "Deliverable: ...; sources baseline" in the scratchpad.
-   4. Check the tools the tasks name (`command -v pdftotext`, the html renderer) and the launch flags in `claude --help`.
+   4. Check the tools the tasks name (`command -v pdftotext`, the render command if the plan names one) and the launch flags in `claude --help`.
 
 ## Preparing a document task
 
@@ -53,8 +53,8 @@ The consolidation task (last wave, kind `document`) is accepted and integrated l
 
    - It reads only `deliverables/<run-id>/parts/`. Start it only when every part and every findings part is `integrated`.
    - Accepting: no part's claim was changed (`grep -vxFf <report-dir>/parts/<consolidation TASK>.md deliverables/<run-id>/parts/T-004.md` prints the lines of a part the consolidation dropped or changed; run it for each part), the contradictions between parts are listed in its report rather than silently resolved, and all the fixed sections exist (executive summary, every part in outline order, confirmed findings, Corrected false positives, recommendation).
-   - **html.** When the format is `html`, the consolidation worker renders `<report-dir>/parts/<consolidation TASK>.html` itself from its `.md`, with the renderer the plan names, as one file with inline CSS and no network loads. You run `grep -Eic '<script|<link[^>]*href="https?:|src="https?:' <file>`; it must print `0`. Open the html yourself. **Never hand-edit the html**: a defect goes back to the worker as a fix round that corrects the `.md` and renders again.
-   - Placing the deliverable, the commit and the path for the user are core Closing steps 2b and 7. Any later fix that changes a part or the consolidation means rendering again, and repeating the html check.
+   - **html.** When the format is `html`, the consolidation worker generates `<report-dir>/parts/<consolidation TASK>.html` itself from its `.md`, as one file with inline CSS and no network loads, and again whenever the `.md` changes. It uses an external render command only if the plan names one as a decision. You run `grep -Eic '<script|<link[^>]*href="https?:|src="https?:' <report-dir>/parts/<consolidation TASK>.html`; it must print `0`. Open the html yourself. **Never hand-edit the html**: a defect goes back to the worker as a fix round that corrects the `.md` and renders again.
+   - Place the deliverable (`<name>.md`, and `.html`) as soon as the consolidation is integrated, before the cross-cutting review is dispatched (core step 2b), and place it again after any later fix. The commit and the path for the user are core Closing steps 2b and 7. Any later fix that changes a part or the consolidation means rendering again, and repeating the html check.
 
 ## Failures (document)
 
@@ -68,9 +68,9 @@ The consolidation task (last wave, kind `document`) is accepted and integrated l
 
 ## Closing (document)
 
-   - Order for a plan without code: consolidation task, deliverable (core step 2b), cross-cutting review as a `findings` task over the deliverable (coherence, contradictions, claims without a source), reserved fix tasks, final gate. A mixed plan reviews the integrated branch and the deliverable.
+   - Order for a plan without code: consolidation task, deliverable (core step 2b), cross-cutting review as a `findings` task over the deliverable (coherence, contradictions, claims without a source), reserved fix tasks, final gate. A mixed plan has two review tasks: the code review of the integrated branch and a `findings` task over the deliverable.
    - Before handing over: the plan's gate over the final `<name>.md`, the html check when html, and the sources baseline once more.
-   - Critical and Important findings of the cross-cutting review become fix tasks, as in core step 1.
+   - Critical and Important findings of the cross-cutting review become fix tasks, as in core step 1. Its report stays in `<report-dir>`, not in `parts/`; summarize it to the user at closing.
 
 ## Red flags (document)
 

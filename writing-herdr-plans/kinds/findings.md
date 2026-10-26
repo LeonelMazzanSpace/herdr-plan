@@ -27,9 +27,9 @@ A findings task replaces the TDD steps of writing-plans with the template below.
   grep -c '^| T-002-F' <report-dir>/T-002.md
   awk -F'|' '/^\| T-002-F/ { for (i = 2; i <= 7; i++) if ($i ~ /^[[:space:]]*$/) bad++ } END { print (bad ? "EMPTY CELL" : "cells ok") }' <report-dir>/T-002.md
   grep -o 'evidence/T-002/[A-Za-z0-9._-]*' <report-dir>/T-002.md | sort -u | while read -r f; do test -s "<report-dir>/$f" || echo "MISSING $f"; done
-  git -C /srv/acme/api status --porcelain | diff - <report-dir>/baseline-api.status && echo "sources untouched"
+  git -C /srv/acme/api status --porcelain -- src/auth src/users | diff - <report-dir>/baseline-T-002.status && echo "scope untouched"
   ```
-  Expected: the first count equals the number of findings you wrote, then `cells ok`, no `MISSING`, `sources untouched`.
+  Expected: the first count equals the number of findings you wrote, then `cells ok`, no `MISSING`, `scope untouched`.
 ````
 
 ## Rules for findings workers
@@ -39,7 +39,7 @@ A findings task replaces the TDD steps of writing-plans with the template below.
 - **Non-overlapping scopes within a wave.** Two findings tasks in the same wave must not examine the same module, account or area. A scope that must be seen twice is two sequential tasks, or one task.
 - **Credentials and access** appear in the plan only by variable or profile name. Production access, real accounts and worker network access are `to confirm` decisions.
 - **Deliverable.** The plan records the deliverable decision (path, format, committed or not) as `to confirm` and has a consolidation task (kind `document`, last wave: see `kinds/document.md`). When a findings task is integrated, the orchestrator copies its report, with the reviewer's verdicts applied (confirmed findings, plus a "Corrected false positives" section with the not reproduced ones), to `deliverables/<run-id>/parts/<TASK>.md`; the consolidation reads only that folder.
-- **Closing order:** consolidation task, then the cross-cutting review, then the reserved fix tasks. In a plan without code, the cross-cutting review is a `findings` task over the deliverable (coherence, contradictions, claims without evidence). In a mixed plan it covers both the integrated branch and the deliverable.
+- **Closing order:** consolidation task, then the cross-cutting review, then the reserved fix tasks. In a plan without code, the cross-cutting review is a `findings` task over the deliverable (coherence, contradictions, claims without evidence). In a mixed plan the review is two tasks: the code review (`--role review`) of the integrated branch and a `findings` task over the deliverable.
 - **Mixed plans.** The code that fixes findings does not exist yet. Reserve its IDs: `### Tasks T-0NN … T-0MM: Reserved for fixes from T-0XX`. After the findings wave, the orchestrator writes each fix task in full ("New task IDs" in executing-herdr-plans) with its own D-number.
 
 ## Contracts
@@ -93,6 +93,7 @@ T-000 stays with the orchestrator. For a plan with findings tasks it:
 1. creates `<report-dir>/parts` and `<report-dir>/evidence`;
 2. proves read-only access to every source and records the baseline:
    - repo: `git -C /srv/acme/api status --porcelain > <report-dir>/baseline-api.status` and `git -C /srv/acme/api rev-parse HEAD > <report-dir>/baseline-api.head`. The scope check later compares against this baseline, not against "empty", because the orchestrator writes the plan and the scratchpad in the same repo;
+   - each findings task's Scope paths, the same way: `git -C /srv/acme/api status --porcelain -- src/auth src/users > <report-dir>/baseline-T-002.status`. The worker's Verify compares only these paths;
    - account: `aws sts get-caller-identity --profile acme-readonly`, plus one read call the tasks need;
 3. checks every tool the tasks name (`command -v rg jq aws`) and that the launch flags exist in `claude --help`.
 
@@ -105,7 +106,7 @@ T-000 stays with the orchestrator. For a plan with findings tasks it:
 - You write only `<report-dir>/T-0NN.md` and `<report-dir>/evidence/T-0NN/` (the real paths are in your package).
 - AWS: use `--profile acme-readonly` only, with read calls (`describe-*`, `list-*`, `get-*`). The profile is already configured; you never see or print keys.
 - Network: GET requests to `https://staging.acme.example` only. No other hosts.
-- Never touch: other repos, `.env` files, other workers' reports, `SCRATCHPAD.md`, dependency manifests, anything under `deliverables/`.
+- Never touch: other repos, `.env` files, other workers' reports, `SCRATCHPAD.md`, dependency manifests. Read under `deliverables/` only when your task's Sources name it; never write there.
 - Secrets you meet: report the file and the type, never the value.
 ```
 

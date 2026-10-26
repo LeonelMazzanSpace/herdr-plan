@@ -5,7 +5,7 @@ Two Claude Code skills that move the way an orchestrated run works out of the pr
 | Skill | When it is used |
 |---|---|
 | [`writing-herdr-plans/`](writing-herdr-plans/SKILL.md) | To write the implementation plan from an approved spec. It builds on `superpowers:writing-plans` and adds the decisions, fixed contracts, waves with a model per task, each worker's environment and the fixed headings. |
-| [`executing-herdr-plans/`](executing-herdr-plans/SKILL.md) | To execute that plan: confirm the stack, prepare the worktrees, generate the packages, launch the workers, accept, review, integrate behind a gate, close the run and resume it. |
+| [`executing-herdr-plans/`](executing-herdr-plans/SKILL.md) | To execute that plan: confirm the stack (code) or scope and access (other kinds), prepare the worktrees, generate the packages, launch the workers, accept, review, integrate behind a gate, close the run and resume it. |
 
 They are used together: the first writes the plan with fixed headings and the second uses them to cut each worker's package.
 

@@ -25,7 +25,7 @@ Each worker owns exactly one task in one worktree.
 | … | … | … |
 | n-1 | T-0NN E2E, usability and motion pass (tests and findings report only; omit and say so if the plan has no UI) | every feature task |
 | n | T-0NN consolidation (`document`; only plans with findings or document tasks) | every findings and document task |
-| n+1 | T-0NN cross-cutting review (read-only; in a plan without code a `findings` task over the deliverable, in a mixed plan over the integrated branch and the deliverable) | everything above, the E2E, usability and motion pass, and the consolidation |
+| n+1 | T-0NN cross-cutting review (read-only; in a plan without code a `findings` task over the deliverable; in a mixed plan two tasks: the code review of the integrated branch and a `findings` task over the deliverable) | everything above, the E2E, usability and motion pass, and the consolidation |
 | n+2 | Fix tasks from the review (T-0NN+1…) · vault sync (orchestrator) | review |
 
 In a plan with no findings or document tasks, drop the consolidation row: the review is wave n and the fixes are wave n+1. In a plan with them, the closing order is consolidation, then review, then fixes.
@@ -90,6 +90,7 @@ Generate it with `bash <executing-herdr-plans skill dir>/scripts/make-package.sh
 **Deliverable** (plans with findings or document tasks; remove this block otherwise):
 - Path: `<COORDINATION_ROOT>/deliverables/<run-id>/`, with `parts/`, `evidence/`, `<name>.md` and, if the format is `html`, `<name>.html`.
 - Format: `<md | html>`. The `.md` is the source; the `.html` is generated from it, never hand-edited.
+- Render (format `html` only): `worker-generated` (default: the consolidation worker writes one self-contained `.html` from the `.md`, and again whenever the `.md` changes) or `<render command>` as decision D`<n>` (then it is in the allowlist and the T-000 tool check).
 - Commit decision D`<n>` `to confirm`: committed by the orchestrator on `<coordination-branch>`, or, for sensitive evidence, the same layout outside the repo and not committed.
 
 **ClickUp sync** (remove this block and write `**ClickUp:** none` plus the reason if there is no board). Rules: the "ClickUp sync worker" rule in writing-herdr-plans.

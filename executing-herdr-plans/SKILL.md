@@ -41,7 +41,7 @@ The `-n` label is only Claude's display name.
 
 ## What changes per kind
 
-Each task has a `Kind` (`code` when the header has none). The core below works for every kind. A kind's own steps are in its file, which you read only when the plan has that kind. Its headings tell where each step goes: Stack confirmation or Scope and access confirmation (Preflight 4), T-000 for this kind (Preflight 10), Preparing (Wave Loop 1), Accepting (Accepting 2–3), Fix rounds (Accepting 5, non-code kinds), Integrating (Accepting 6), Failures, Closing and Red flags.
+Each task has a `Kind` (`code` when the header has none). T-000 and reserved slots do not count when deciding which kinds a plan uses: a pure audit plan does not run the stack confirmation because of T-000. The core below works for every kind. A kind's own steps are in its file, which you read only when the plan has that kind. Its headings tell where each step goes: Stack confirmation or Scope and access confirmation (Preflight 4), T-000 for this kind (Preflight 10), Preparing (Wave Loop 1), Accepting (Accepting 2–3), Fix rounds (Accepting 5, non-code kinds), Integrating (Accepting 6), Failures, Closing and Red flags.
 
 | Kind | What the worker delivers | Read when the plan has it |
 |---|---|---|
@@ -70,6 +70,7 @@ Each task has a `Kind` (`code` when the header has none). The core below works f
    - Launching with `--permission-mode auto` may be denied by the permission classifier. If so, ask the user once to authorize it and record the answer as a D-number.
    - If the user refuses, ask which write-capable mode they approve (e.g. `acceptEdits`, approving commands in each pane). Never switch to bypass flags.
    - Non-code workers (findings, document) do not use a write-capable mode: they launch with `--permission-mode dontAsk --allowedTools "<read tools, read-only commands the plan names, Write/Edit only under <report-dir>>"`. Verify both flags against `claude --help` before the first launch, and have the user approve the allowlist in step 4.
+   - **Canary.** Before the first non-code dispatch, launch one non-code worker with the verified allowlist and prompt it to write `<report-dir>/canary.md`. If the file does not appear, fix the allowlist path syntax (e.g. absolute paths in the permission rules) and repeat before dispatching. Record the result in the scratchpad.
 8. **Keep the machine awake.** Sleep pauses every worker and cuts off reports. Ask the user first; with their OK, run `caffeinate -i` in a pane you create.
 9. **ClickUp sync** (skip if the plan says `**ClickUp:** none`). Verify first, then start the worker:
    - the plan's board decision is `approved`. If it is still `to confirm`, ask the user now: creating tasks is outward-facing;
@@ -208,12 +209,17 @@ For plans with findings or document tasks the order is: consolidation task, deli
 
 1. Run the **cross-cutting review** (read-only, opus) on the integrated branch or the deliverable.
    - Package it with `make-package.sh --role review`. It gets no per-task review and no merge; its findings report is the result.
-   - `--role review` is for code. In a plan without code, the cross-cutting review is a `findings` task over the deliverable, packaged like any findings task. In a mixed plan it covers the integrated branch (`--role review`) and the deliverable.
+   - `--role review` is for code. In a plan without code, the cross-cutting review is a `findings` task over the deliverable, packaged like any findings task. In a mixed plan it is two tasks: the code review of the integrated branch (`--role review`) and a `findings` task over the deliverable.
+   - A review over the deliverable keeps its report in `<report-dir>`: it is not integrated into `deliverables/<run-id>/parts/` and is not an audit part. Its confirmed findings become fix tasks or debt, and you summarize it to the user in step 7.
    - Turn its Critical and Important findings into fix tasks (the next IDs) and record the deferred Minor ones as debt.
    - **New task IDs** (fix tasks, split tasks, hits from Learning Across Tasks): before packaging, append a full `### Task T-0NN: <title>` section with its header line to the plan under `## Tasks`, replacing its reserved slot. Record it as a D-number. Packages always come from the plan, never hand-written.
 2. Run the final gate, including the browser smoke test, and record the commit.
    - UI plans: `kinds/code.md § Closing (code)`.
-2b. **Deliverable** (plans with findings or document tasks). Once the consolidation task is accepted and integrated like any document task, place its part `deliverables/<run-id>/parts/<consolidation TASK>.md` as the deliverable `<name>.md` under `deliverables/<run-id>/`, and its `.html` too when the format is html (the consolidation worker writes it). Commit it on the coordination branch as the deliverable decision says (not at all if the decision is outside the repo). For html, run `grep -Eic '<script|<link[^>]*href="https?:|src="https?:' <file>`: it must print `0`. After any later fix task that changes a part or the consolidation, re-run the consolidation as needed, place `<name>.md`/`.html` again, re-run the html check when html, and commit again as decided. Give the user the deliverable's absolute path only once, in step 7, when no fix task is pending.
+2b. **Deliverable** (plans with findings or document tasks).
+   - Place it as soon as the consolidation task is accepted and integrated like any document task, before the cross-cutting review is dispatched: its part `deliverables/<run-id>/parts/<consolidation TASK>.md` becomes the deliverable `<name>.md` under `deliverables/<run-id>/`, and `<report-dir>/parts/<consolidation TASK>.html` becomes `<name>.html` when the format is html (the consolidation worker writes it). Commit it on the coordination branch as the deliverable decision says (not at all if the decision is outside the repo).
+   - For html, run `grep -Eic '<script|<link[^>]*href="https?:|src="https?:' <report-dir>/parts/<consolidation TASK>.html`: it must print `0`.
+   - After any later fix task that changes a part or the consolidation, re-run the consolidation as needed, place `<name>.md`/`.html` again, re-run the html check when html, and commit again as decided.
+   - Give the user the deliverable's absolute path only once, in step 7, when no fix task is pending.
 3. If the user asked for a local run:
    - pass secrets as process environment from a 0600 file in the session scratchpad;
    - never edit `.env` without permission;
@@ -225,7 +231,7 @@ For plans with findings or document tasks the order is: consolidation task, deli
    - update `last-sync`, run the validator, and queue anything that fails in the scratchpad.
 5. **ClickUp final sync** (if the worker ran): send the last events, including the `verified` states and the cross-cutting review's fix tasks and deferred debt. Read the board back (`clickup_filter_tasks` on the list) and compare it with the scratchpad's tasks table. Record the result in the scratchpad's ClickUp section; if they differ, say which tasks. Then `/exit` the worker.
 6. Close only the panes this run created, except your own. Keep worktrees, branches and databases until the user confirms cleanup.
-7. Update the scratchpad and, if the project keeps one, the daily log (one line per milestone during the run, not only at the end). Give the user the result, including the deliverable's absolute path (plans with findings or document tasks), the checks run, limitations, remaining work and live resources. Push, PR or merge to `main` only with explicit authorization.
+7. Update the scratchpad and, if the project keeps one, the daily log (one line per milestone during the run, not only at the end). Give the user the result, including the deliverable's absolute path (plans with findings or document tasks), a summary of the cross-cutting review (fix tasks and debt), the checks run, limitations, remaining work and live resources. Push, PR or merge to `main` only with explicit authorization.
 
 ## Handing Off to a Relief Orchestrator
 
@@ -265,8 +271,8 @@ For "status", "qué falta" or "continuá":
 
 | Need | Command |
 |---|---|
-| Worker package | `bash <skill-dir>/scripts/make-package.sh --plan P --task T-0NN --model M --why W --run-id R --reports D --worktree WT --branch B --base SHA --coord ROOT --coord-branch CB [--vault-excerpts F] [--notes F] [--env "…"] [--role review] [--attempt N] [--kind K]` |
-| Review package | `bash <skill-dir>/scripts/make-review-package.sh --task T-0NN --model M --run-id R --reports D --worktree WT --branch B --base $(git -C WT merge-base CB HEAD) [--notes F] [--attempt N] [--kind K] [--integrated DIR]` |
+| Worker package | `bash <skill-dir>/scripts/make-package.sh --plan P --task T-0NN --model M --why W --run-id R --reports D --coord ROOT [--worktree WT --branch B --base SHA --coord-branch CB] [--vault-excerpts F] [--notes F] [--env "…"] [--role review] [--attempt N] [--kind K]` (the worktree flags: code only) |
+| Review package | `bash <skill-dir>/scripts/make-review-package.sh --task T-0NN --model M --run-id R --reports D [--worktree WT --branch B --base $(git -C WT merge-base CB HEAD)] [--notes F] [--attempt N] [--kind K] [--integrated DIR]` (the worktree flags: code only) |
 | Fix round | `fix-round-template.md` → `<report-dir>/<task>.fix-a<N>.md` |
 | Own context | `herdr pane read "$HERDR_PANE_ID" --source visible \| grep -o 'ctx:[0-9]*%' \| tail -1` |
 | Hand-off | `handoff-template.md` → scratchpad entry + `<report-dir>/handoff-orch-<N>.md` · `herdr agent start orch-<N> …` · confirm with `Resumed by orch-<N>` |

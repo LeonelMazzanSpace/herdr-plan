@@ -38,8 +38,8 @@ A document task replaces the TDD steps of writing-plans with the template below.
 - **Every claim cites a source** from the Sources contract. A claim without a source is removed or marked `Note:` (the worker's own inference).
 - **Distinct parts within a wave.** Two document tasks in the same wave write distinct parts, that is, distinct outline sections. Two tasks never write the same section.
 - **The outline is fixed.** A part uses the exact headings of its section. A worker never renames, adds or merges outline sections; it reports the problem as BLOCKED.
-- **Deliverable.** The plan records the deliverable decision (path, format `md` or `html`, committed or not) as `to confirm`.
-- **Closing order:** consolidation task, then the cross-cutting review, then the reserved fix tasks. In a plan without code, the cross-cutting review is a `findings` task over the deliverable (coherence, contradictions, claims without a source). In a mixed plan it covers both the integrated branch and the deliverable.
+- **Deliverable.** The plan records the deliverable decision (path, format `md` or `html`, committed or not) as `to confirm`. For `html`, by default the consolidation worker generates the `.html` from the `.md` (no renderer in the allowlist); an external render command is used only if the plan records it as a decision, and then it is in the allowlist and the T-000 tool check.
+- **Closing order:** consolidation task, then the cross-cutting review, then the reserved fix tasks. In a plan without code, the cross-cutting review is a `findings` task over the deliverable (coherence, contradictions, claims without a source). In a mixed plan the review is two tasks: the code review (`--role review`) of the integrated branch and a `findings` task over the deliverable.
 
 ## Consolidation task
 
@@ -55,11 +55,11 @@ Every plan with findings or document tasks has one: kind `document`, in the last
 **Acceptance criteria:**
 1. The document has an executive summary, every part in outline order, the confirmed findings, a "Corrected false positives" section (gathered from the integrated findings parts) and the recommendation.
 2. No part's claim is changed; contradictions between parts are listed in the report instead of silently resolved.
-3. When the format is `html`, `<report-dir>/parts/T-008.html` is generated from the `.md`: one file, inline CSS, no network loads.
+3. When the format is `html`, `<report-dir>/parts/T-008.html` is generated from the `.md`: one file, inline CSS, no network loads, and generated again whenever the `.md` changes.
 
 - [ ] **Step 1: Read the parts.** Read every file in `deliverables/<run-id>/parts/`: the document parts, and the confirmed findings and "Corrected false positives" sections of the findings parts.
 - [ ] **Step 2: Write the document** in the order of criterion 1. Keep each part's text and its `[S<n>]` tags.
-- [ ] **Step 3: Render** (format `html` only): generate the `.html` from the `.md`. Never edit it by hand: fix the `.md` and generate again.
+- [ ] **Step 3: Render** (format `html` only): write the `.html` from the `.md` yourself, as one self-contained file (or run the render command the plan names). Never edit it by hand: fix the `.md` and generate again.
 - [ ] **Step 4: Verify.**
   ```bash
   grep -c '^## ' <report-dir>/parts/T-008.md
@@ -67,6 +67,14 @@ Every plan with findings or document tasks has one: kind `document`, in the last
   ```
   Expected: the number of outline sections plus the four fixed ones, and `0` (html only).
 ````
+
+### Consolidation when the plan has only findings tasks
+
+There are no document parts, so the consolidation is written differently:
+
+- the Document outline lists only the fixed sections (executive summary, confirmed findings, "Corrected false positives", recommendation), with no area sections;
+- findings parts are cited by finding ID (`T-001-F02`) instead of `[S<n>]`, so the consolidation task lists no Sources contract;
+- the Verify count is `4`, the fixed sections: the outline is not counted again on top of them.
 
 ## Contracts
 
@@ -130,7 +138,7 @@ T-000 stays with the orchestrator. For a plan with document tasks it:
 - You write; you change no source. Your working directory is `/srv/acme`. Read the files listed in your task's Sources freely; never write there.
 - You write only `<report-dir>/parts/T-0NN.md` and `<report-dir>/T-0NN.md` (the real paths are in your package).
 - Network: GET requests to `https://acme-queue.example` only. No other hosts.
-- No credentials are needed. Never touch `.env` files, `SCRATCHPAD.md`, other workers' parts or anything under `deliverables/`.
+- No credentials are needed. Never touch `.env` files, `SCRATCHPAD.md` or other workers' parts. Read under `deliverables/` only when your task's Sources name it; never write there.
 ```
 
 ## Self-review (document)

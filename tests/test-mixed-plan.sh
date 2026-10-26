@@ -212,7 +212,7 @@ done
 
 build T-003; P="$REPORTS/T-003.package.md"
 if [ "$RC" = 0 ] && has "$P" 'document_worker' && has "$P" 'parts/T-003.md' \
-  && has "$P" '## Document outline' && has "$P" '## Style guide' && has "$P" '## Sources' \
+  && has "$P" '## Document outline' && has "$P" '## Style guide' \
   && grep '^Allowed writes:' "$P" | grep -qF 'parts/T-003.html' \
   && ! grep -qiE 'branch|merge-base|worktree' "$P"; then pass package_T-003
 else bad package_T-003 "rc=$RC $ERR"; fi

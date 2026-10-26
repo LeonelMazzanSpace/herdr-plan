@@ -110,7 +110,7 @@ The allowlist is checked against the installed `claude --help` at preflight. Rev
 cd /srv/acme/shop-audit/deliverables/<run-id>
 cat parts/T-00[12].md | grep -o '^| T-00[12]-F[0-9]*' | sort | uniq -d    # no output: unique IDs
 awk -F'|' '/^\| T-00[12]-F/ { for (i = 2; i <= 7; i++) if ($i ~ /^[[:space:]]*$/) bad++ } END { print (bad ? "EMPTY CELL" : "cells ok") }' parts/T-00[12].md
-for h in '## 1 Executive summary' '## 2.1 Authentication findings' '## 2.2 Orders findings' '## 3 Corrected false positives' '## 4 Recommendation'; do grep -Fxq "$h" shop-api-audit.md || echo "MISSING $h"; done
+for h in '## 1 Executive summary' '## 2 Confirmed findings' '## 3 Corrected false positives' '## 4 Recommendation'; do grep -Fxq "$h" shop-api-audit.md || echo "MISSING $h"; done
 grep -Eic '<script|<link[^>]*href="https?:|src="https?:' shop-api-audit.html
 ```
 
@@ -148,23 +148,15 @@ One row per finding, in the worker's report under `## Findings`:
 | Section | Exact heading | Owner | Content |
 |---|---|---|---|
 | 1 | `## 1 Executive summary` | T-003 | Scope, counts per severity, the three findings that matter most |
-| 2 | `## 2.1 Authentication findings` | T-003 | The confirmed findings of T-001, from `parts/T-001.md` |
-| 2 | `## 2.2 Orders findings` | T-003 | The confirmed findings of T-002, from `parts/T-002.md` |
+| 2 | `## 2 Confirmed findings` | T-003 | The confirmed findings of T-001 and T-002, from `parts/T-001.md` and `parts/T-002.md`, in ID order |
 | 3 | `## 3 Corrected false positives` | T-003 | The "Corrected false positives" sections of both parts |
 | 4 | `## 4 Recommendation` | T-003 | What to fix first and what to record as debt |
 
 ## Style guide
 
 - English, present tense, no first person. Numbers with units and a date.
-- One claim per line, ending with its tag `[S<n>]`. Opinions start with `Note:`.
+- One claim per line. Opinions start with `Note:`.
 - Finding IDs are written in full (`T-001-F01`) wherever a finding is mentioned.
-
-## Sources
-
-| # | Source | Covers | Accessed |
-|---|---|---|---|
-| S1 | `deliverables/<run-id>/parts/T-001.md` | Integrated findings of the auth audit | at execution |
-| S2 | `deliverables/<run-id>/parts/T-002.md` | Integrated findings of the orders audit | at execution |
 
 ## Tasks
 
@@ -180,6 +172,8 @@ One row per finding, in the worker's report under `## Findings`:
   ```bash
   git -C /srv/acme/shop-api status --porcelain > "$report_dir/baseline-shop-api.status"
   git -C /srv/acme/shop-api rev-parse HEAD > "$report_dir/baseline-shop-api.head"
+  git -C /srv/acme/shop-api status --porcelain -- src/auth src/users > "$report_dir/baseline-T-001.status"
+  git -C /srv/acme/shop-api status --porcelain -- src/orders src/stock > "$report_dir/baseline-T-002.status"
   git -C /srv/acme/shop-audit status --porcelain -- deliverables > "$report_dir/baseline-deliverables.status"
   ```
 - [ ] **Step 3:** check the tools the tasks name and the launch flags.
@@ -209,9 +203,9 @@ One row per finding, in the worker's report under `## Findings`:
   grep -c '^| T-001-F' <report-dir>/T-001.md
   awk -F'|' '/^\| T-001-F/ { for (i = 2; i <= 7; i++) if ($i ~ /^[[:space:]]*$/) bad++ } END { print (bad ? "EMPTY CELL" : "cells ok") }' <report-dir>/T-001.md
   grep -o 'evidence/T-001/[A-Za-z0-9._-]*' <report-dir>/T-001.md | sort -u | while read -r f; do test -s "<report-dir>/$f" || echo "MISSING $f"; done
-  git -C /srv/acme/shop-api status --porcelain | diff - <report-dir>/baseline-shop-api.status && echo "sources untouched"
+  git -C /srv/acme/shop-api status --porcelain -- src/auth src/users | diff - <report-dir>/baseline-T-001.status && echo "scope untouched"
   ```
-  Expected: the first count equals the number of findings you wrote, then `cells ok`, no `MISSING`, `sources untouched`.
+  Expected: the first count equals the number of findings you wrote, then `cells ok`, no `MISSING`, `scope untouched`.
 
 ### Task T-002: Audit orders in the shop API
 
@@ -233,32 +227,32 @@ One row per finding, in the worker's report under `## Findings`:
   grep -c '^| T-002-F' <report-dir>/T-002.md
   awk -F'|' '/^\| T-002-F/ { for (i = 2; i <= 7; i++) if ($i ~ /^[[:space:]]*$/) bad++ } END { print (bad ? "EMPTY CELL" : "cells ok") }' <report-dir>/T-002.md
   grep -o 'evidence/T-002/[A-Za-z0-9._-]*' <report-dir>/T-002.md | sort -u | while read -r f; do test -s "<report-dir>/$f" || echo "MISSING $f"; done
-  git -C /srv/acme/shop-api status --porcelain | diff - <report-dir>/baseline-shop-api.status && echo "sources untouched"
+  git -C /srv/acme/shop-api status --porcelain -- src/orders src/stock | diff - <report-dir>/baseline-T-002.status && echo "scope untouched"
   ```
-  Expected: the first count equals the number of findings you wrote, then `cells ok`, no `MISSING`, `sources untouched`.
+  Expected: the first count equals the number of findings you wrote, then `cells ok`, no `MISSING`, `scope untouched`.
 
 ### Task T-003: Consolidate the deliverable
 
-**Kind:** document · **Model:** opus · **Depends on:** T-001, T-002 integrated · **Parallel with:** none · **Contracts:** Document outline, Style guide, Sources · **Vault:** none
+**Kind:** document · **Model:** opus · **Depends on:** T-001, T-002 integrated · **Parallel with:** none · **Contracts:** Document outline, Style guide · **Vault:** none
 
 **Deliverable format:** html. Generate `<report-dir>/parts/T-003.html` from the `.md`.
-**Part:** the whole document, written as `<report-dir>/parts/T-003.md` (the orchestrator places it as `shop-api-audit.md` in the deliverable). **Sources:** `deliverables/<run-id>/parts/` (read only): the integrated findings parts S1 and S2.
+**Part:** the whole document, written as `<report-dir>/parts/T-003.md` (the orchestrator places it as `shop-api-audit.md` in the deliverable). **Sources:** `deliverables/<run-id>/parts/` (read only): the integrated findings parts of T-001 and T-002 (cited by finding ID).
 
 **Acceptance criteria:**
-1. The document has an executive summary, the confirmed findings of each part in outline order, a "Corrected false positives" section (gathered from the integrated findings parts) and the recommendation.
+1. The document has an executive summary, the confirmed findings of each part, a "Corrected false positives" section (gathered from the integrated findings parts) and the recommendation.
 2. No part's claim is changed; contradictions between parts are listed in the report instead of silently resolved.
 3. `<report-dir>/parts/T-003.html` is generated from the `.md`: one file, inline CSS, no network loads.
 
-- [ ] **Step 1: Read the parts.** Read every file in `deliverables/<run-id>/parts/`: the confirmed findings and the "Corrected false positives" sections of S1 and S2.
-- [ ] **Step 2: Write the document** in the order of criterion 1, using exactly the headings of the Document outline. Keep each finding's ID, row and evidence, and cite `[S1]` or `[S2]` for each claim taken from a part.
+- [ ] **Step 1: Read the parts.** Read every file in `deliverables/<run-id>/parts/`: the confirmed findings and the "Corrected false positives" sections of both parts.
+- [ ] **Step 2: Write the document** in the order of criterion 1, using exactly the headings of the Document outline. Keep each finding's ID, row and evidence, and cite the finding ID for each claim taken from a part.
 - [ ] **Step 3: Render.** Generate the `.html` from the `.md`. Never edit it by hand: fix the `.md` and generate again.
 - [ ] **Step 4: Verify.**
   ```bash
   grep -c '^## ' <report-dir>/parts/T-003.md
-  for h in '## 1 Executive summary' '## 2.1 Authentication findings' '## 2.2 Orders findings' '## 3 Corrected false positives' '## 4 Recommendation'; do grep -Fxq "$h" <report-dir>/parts/T-003.md || echo "MISSING $h"; done
+  for h in '## 1 Executive summary' '## 2 Confirmed findings' '## 3 Corrected false positives' '## 4 Recommendation'; do grep -Fxq "$h" <report-dir>/parts/T-003.md || echo "MISSING $h"; done
   grep -Eic '<script|<link[^>]*href="https?:|src="https?:' <report-dir>/parts/T-003.html
   ```
-  Expected: `5` (two area sections plus the three fixed ones), no `MISSING`, and `0`.
+  Expected: `4` (the fixed sections; the outline has no area sections), no `MISSING`, and `0`.
 
 ### Task T-004: Review the deliverable
 

@@ -22,7 +22,7 @@ Preflight step 10, done by you:
 
    1. Create `<report-dir>/parts` and `<report-dir>/evidence`, and the deliverable folder as the deliverable decision says (`deliverables/<run-id>/parts` and `evidence` in the coordination root, or the same layout at the outside path).
    2. Prove read-only access to every source with the commands the plan names (`aws sts get-caller-identity --profile <ro-profile>`, `test -r <path>`, `git -C <repo> status`).
-   3. Record the sources baseline for each source repo: `git -C <repo> status --porcelain > <report-dir>/baseline-<repo>.status` and `git -C <repo> rev-parse HEAD > <report-dir>/baseline-<repo>.head`. The scope check compares against it later, excluding the paths you write yourself (`deliverables/`, the plan, `SCRATCHPAD.md`), never against "empty". Note it in the scratchpad ("Deliverable: ...; sources baseline").
+   3. Record the sources baseline for each source repo: `git -C <repo> status --porcelain > <report-dir>/baseline-<repo>.status` and `git -C <repo> rev-parse HEAD > <report-dir>/baseline-<repo>.head`. The scope check compares against it later, excluding the paths you write yourself (`deliverables/`, the plan, `SCRATCHPAD.md`, any other path you write), never against "empty". Also record each findings task's Scope paths the same way (`git -C <repo> status --porcelain -- <scope paths> > <report-dir>/baseline-<TASK>.status`): the worker's Verify compares only those. Note it in the scratchpad ("Deliverable: ...; sources baseline").
    4. Check the tools the tasks name (`command -v rg jq aws`) and the launch flags in `claude --help`.
 
 ## Preparing a findings task
@@ -37,11 +37,11 @@ Preflight step 10, done by you:
    2. **Scope.** All three must hold:
       - the sources are intact against the T-000 baseline:
         ```bash
-        EXCL='^(.. )?"?(deliverables/|SCRATCHPAD\.md|<plan path>)'
+        EXCL='^(.. )?"?(deliverables/|SCRATCHPAD\.md|<plan path>|<other paths you write>)'
         git -C <repo> status --porcelain | grep -vE "$EXCL" | diff - <(grep -vE "$EXCL" <report-dir>/baseline-<repo>.status)
         git -C <repo> diff --name-only "$(cat <report-dir>/baseline-<repo>.head)" HEAD | grep -vE "$EXCL"
         ```
-        Both print nothing. For an account or URL, which `git` cannot see, read the commands in the report and reject any that is not a read;
+        `EXCL` lists every path you write yourself: `deliverables/`, `SCRATCHPAD.md`, the plan, and any other path you, the orchestrator, write (daily log, `.superpowers/`, …). Both print nothing. For an account or URL, which `git` cannot see, read the commands in the report and reject any that is not a read;
       - the worker wrote only under `<report-dir>`: `find <report-dir> -type f -newer <report-dir>/<TASK>.package.md` shows only `<TASK>.md`, `evidence/<TASK>/…` and other tasks' own files;
       - the report and the evidence hold no secret, token, password or hash: grep them.
    3. **Verify.** Re-run the task's Verify commands; they are green. Then open the evidence of **every Critical finding yourself** (the file:line, the saved output, the capture) and check that it shows what the finding says. A worker's "reproduced twice" is a claim.
@@ -57,7 +57,7 @@ Preflight step 10, done by you:
 
 ## Integrating a findings task
 
-Core Accepting step 6. After `APPROVED`:
+Core Accepting step 6. After `APPROVED`. The cross-cutting review's report is the exception: it stays in `<report-dir>`, is never copied to `parts/`, and is not an audit part; its confirmed findings become fix tasks or debt, and you summarize it to the user at closing. For every other findings task:
 
    1. **Apply the verdicts** to the copy you are about to publish, never to the worker's report in `<report-dir>`: each `not reproduced` finding moves to a "Corrected false positives" section with the reviewer's observation, and is never deleted; each `inaccurate` Minor finding gets the reviewer's severity or description.
    2. **Copy** the corrected report to `deliverables/<run-id>/parts/<TASK>.md` and the evidence to `deliverables/<run-id>/evidence/<TASK>/` (add `evidence/<TASK>-review/` when a false positive cites it). Evidence links stay as the worker wrote them (`evidence/<TASK>/F01.txt`): they are relative to `deliverables/<run-id>/`, not to `parts/`.
@@ -75,9 +75,9 @@ Core Accepting step 6. After `APPROVED`:
 
 ## Closing (findings)
 
-   - Order for a plan without code: consolidation task, deliverable (core step 2b), cross-cutting review as a `findings` task over the deliverable, reserved fix tasks, final gate. A mixed plan reviews the integrated branch and the deliverable.
+   - Order for a plan without code: consolidation task, deliverable (core step 2b), cross-cutting review as a `findings` task over the deliverable, reserved fix tasks, final gate. A mixed plan has two review tasks: the code review of the integrated branch and a `findings` task over the deliverable.
    - Before handing over: run the plan's gate once more, check the sources baseline a last time, confirm every `not reproduced` finding is listed in "Corrected false positives", and that finding IDs are unique and evidence links resolve from `deliverables/<run-id>/`.
-   - Critical and Important findings of the cross-cutting review become fix tasks, as in core step 1.
+   - Critical and Important findings of the cross-cutting review become fix tasks, as in core step 1. Its report stays in `<report-dir>` (not in `parts/`, so re-consolidation never reads it); summarize it to the user at closing.
 
 ## Red flags (findings)
 
