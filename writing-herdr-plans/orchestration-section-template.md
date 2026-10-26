@@ -85,7 +85,7 @@ Close a worker pane only after its report is accepted and no follow-up turn is n
 - the contract sections listed in the task header;
 - vault excerpts quoted by the orchestrator.
 
-Generate it with `bash <executing-herdr-plans skill dir>/scripts/make-package.sh`; for the read-only cross-cutting review of code, add `--role review`. For findings and document tasks it reads `--kind` from the task header; the cross-cutting review of a plan without code is a `findings` task, so it has no `--role review`.
+Generate it with `bash <executing-herdr-plans skill dir>/scripts/make-package.sh`; for the read-only cross-cutting review of code, add `--role review`. For findings and document tasks the script reads the kind from the task header (`--kind` is only a cross-check and may be omitted); the cross-cutting review of a plan without code is a `findings` task, so it has no `--role review`.
 
 **Deliverable** (plans with findings or document tasks; remove this block otherwise):
 - Path: `<COORDINATION_ROOT>/deliverables/<run-id>/`, with `parts/`, `evidence/`, `<name>.md` and, if the format is `html`, `<name>.html`.

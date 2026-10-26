@@ -16,7 +16,7 @@ A findings task replaces the TDD steps of writing-plans with the template below.
 
 **Acceptance criteria:**
 1. Every in-scope entry point (route or function) is listed in the report as covered, with the finding IDs it produced or "no finding".
-2. Every finding is in the Findings format, with a severity from the Severity scale and an evidence file under `<report-dir>/evidence/T-002/`.
+2. Every finding is in the Findings format, with a severity from the Severity scale and its evidence: an evidence file under `<report-dir>/evidence/T-002/`, or a `file:line`, a command with its output, or a URL in the Evidence cell.
 3. Every finding was reproduced a second time before being written down.
 
 - [ ] **Step 1: Survey.** List the in-scope entry points with `rg -n "@(Get|Post|Put|Delete)\(" /srv/acme/api/src/auth`. Read each one and note what to check.
@@ -35,12 +35,12 @@ A findings task replaces the TDD steps of writing-plans with the template below.
 ## Rules for findings workers
 
 - **Read-only.** A findings task never edits, creates or deletes anything in the sources and never runs a command that changes state (no `POST` against a real account, no `terraform apply`). It writes only `<report-dir>/<TASK>.md` and `<report-dir>/evidence/<TASK>/`.
-- **Evidence or it is not a finding.** Evidence is a `file:line`, a command with its output, a URL, or a screenshot path. A secret found is reported by location and type, never copied into the report or the evidence.
+- **Evidence or it is not a finding.** Evidence is a `file:line`, a command with its output, a URL, or an evidence file under `<report-dir>/evidence/<TASK>/` (saved output, screenshot). A secret found is reported by location and type, never copied into the report or the evidence.
 - **Non-overlapping scopes within a wave.** Two findings tasks in the same wave must not examine the same module, account or area. A scope that must be seen twice is two sequential tasks, or one task.
 - **Credentials and access** appear in the plan only by variable or profile name. Production access, real accounts and worker network access are `to confirm` decisions.
-- **Deliverable.** The plan records the deliverable decision (path, format, committed or not) as `to confirm` and has a consolidation task (kind `document`, last wave: see `kinds/document.md`). When a findings task is integrated, the orchestrator copies its report, with the reviewer's verdicts applied (confirmed findings, plus a "Corrected false positives" section with the not reproduced ones), to `deliverables/<run-id>/parts/<TASK>.md`; the consolidation reads only that folder.
+- **Deliverable.** The plan records the deliverable decision (path, format, committed or not) as `to confirm` and has a consolidation task (kind `document`, in the last wave of findings and document work, before the cross-cutting review: see `kinds/document.md`). When a findings task is integrated, the orchestrator copies its report, with the reviewer's verdicts applied (confirmed findings, plus a "Corrected false positives" section with the not reproduced ones), to `deliverables/<run-id>/parts/<TASK>.md`; the consolidation reads only that folder.
 - **Closing order:** consolidation task, then the cross-cutting review, then the reserved fix tasks. In a plan without code, the cross-cutting review is a `findings` task over the deliverable (coherence, contradictions, claims without evidence). In a mixed plan the review is two tasks: the code review (`--role review`) of the integrated branch and a `findings` task over the deliverable.
-- **Mixed plans.** The code that fixes findings does not exist yet. Reserve its IDs: `### Tasks T-0NN … T-0MM: Reserved for fixes from T-0XX`. After the findings wave, the orchestrator writes each fix task in full ("New task IDs" in executing-herdr-plans) with its own D-number.
+- **Mixed plans.** The code that fixes findings does not exist yet. Reserve its IDs: `### Tasks T-0NN … T-0MM: Reserved for fixes from <task(s) or review>`. After the findings wave, the orchestrator writes each fix task in full ("New task IDs" in executing-herdr-plans) with its own D-number.
 
 ## Contracts
 
@@ -59,7 +59,7 @@ One row per finding, in the worker's report under `## Findings`:
 
 - ID: `<TASK>-F<NN>`; a worker numbers only its own findings.
 - Severity: a value of the Severity scale, exactly as written.
-- Evidence: `file:line`, command plus output, URL, or screenshot path under `evidence/<TASK>/`. Never empty.
+- Evidence: `file:line`, command plus output, URL, or an evidence file under `evidence/<TASK>/` (saved output, screenshot). Never empty.
 - Problems that did not reproduce go under `## Not reproduced`, outside the table.
 ```
 
@@ -102,7 +102,7 @@ T-000 stays with the orchestrator. For a plan with findings tasks it:
 ```markdown
 ## Worker environment
 
-- You audit; you change nothing. Your working directory is `/srv/acme`. Read `/srv/acme/api` freely; never write there.
+- You audit; you change nothing. Your working directory is `/srv/acme/api`, the coordination root and the source: read it freely; never write there.
 - You write only `<report-dir>/T-0NN.md` and `<report-dir>/evidence/T-0NN/` (the real paths are in your package).
 - AWS: use `--profile acme-readonly` only, with read calls (`describe-*`, `list-*`, `get-*`). The profile is already configured; you never see or print keys.
 - Network: GET requests to `https://staging.acme.example` only. No other hosts.
@@ -114,9 +114,9 @@ T-000 stays with the orchestrator. For a plan with findings tasks it:
 
 - Every findings task lists `Findings format` and `Severity scale`, and its Verify checks the ID prefix, the cells and the evidence files.
 - Scopes within a wave do not overlap: no module, account or area is in two findings tasks of the same wave.
-- There is a consolidation task (kind `document`, last wave); the cross-cutting review comes after it, then the reserved fix tasks.
+- There is a consolidation task (kind `document`, last wave of findings and document work); the cross-cutting review comes after it, then the reserved fix tasks.
 - The deliverable decision (path, format, committed or not) exists and is `to confirm` until the user answers.
-- Mixed plans reserve the fix slots (`### Tasks T-0NN … T-0MM: Reserved for fixes from T-0XX`).
+- Mixed plans reserve the fix slots (`### Tasks T-0NN … T-0MM: Reserved for fixes from <task(s) or review>`).
 - T-000 records a baseline per source, and the Worker environment names credentials only by variable or profile.
 
 ## Common mistakes (findings)

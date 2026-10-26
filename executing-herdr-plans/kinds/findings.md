@@ -51,7 +51,7 @@ Preflight step 10, done by you:
 ## Fix rounds
 
 `CHANGES_REQUIRED` goes through `fix-round-template.md` like a code task: to the same worker session if it is alive, otherwise to a fresh `t0NN-f<N>`. Differences:
-   - the cwd is the coordination root, read-only on the sources, not a worktree: replace the template's worktree and commit lines accordingly, and replace its TDD bullet with "re-verify each finding, correct its evidence, cover the missing areas";
+   - the cwd is the coordination root, read-only on the sources, not a worktree: replace the template's worktree line (`You are … in its existing worktree <path> …`) with the coordination-root cwd, its commit lines (`Add new commits on top: …` and `the commit(s) and files changed;`) with "no commits", and its test-DB line (`Verify (the test DB env var is already exported): …`) with `Verify:` and the task's Verify commands; replace its TDD bullet (`Fix every Critical and Important finding. TDD: …`) with "re-verify each finding, correct its evidence, cover the missing areas";
    - the worker rewrites `<report-dir>/<TASK>.md` and its evidence and adds an "Attempt N (fix round)" section saying what changed per finding;
    - scoped re-review with the next attempt number (`--attempt 2`, …); same escalation rule as code (a second failure on the same finding goes one model tier up).
 

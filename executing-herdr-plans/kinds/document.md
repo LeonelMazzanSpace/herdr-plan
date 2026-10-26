@@ -4,7 +4,7 @@ Read this when the plan has document tasks (a section of a report, a comparative
 
 ## Scope and access confirmation
 
-Preflight step 4 for document tasks. Same shape and rules as `kinds/findings.md § Scope and access confirmation`: read-only, one table `Category · Value · Source · Status`, ask once, never approve a row for the user.
+Preflight step 4 for document tasks. Read-only (touch no source and no account). Show one table, in the user's language, one row per category: `Category · Value · Source · Status` (Source: `plan`, `user`, `company default`). Ask once: after the table, list only the `conflict` and `undecided` rows, each with your recommendation and a one-line tradeoff, in the same message as the other preflight questions. Never approve a row for the user, and never widen access on their behalf.
 
    - **Rows:** sources (files, URLs, repos, with the access each needs: network hosts, credentials by name); audience; deliverable (path, format `md` or `html`, commit decision); style guide; outline (sections, exact headings, owner task of each); out of scope. Also show the worker tool allowlist you propose, including a render command only if the plan names one as a decision, for the user to approve.
    - **Status:** `confirmed`, `conflict` (e.g. a task cites a source number the Sources contract lacks), `undecided` (audience or format not decided).
@@ -16,7 +16,7 @@ Preflight step 10, done by you:
 
    1. Create `<report-dir>/parts`, and the deliverable folder as the deliverable decision says (`deliverables/<run-id>/parts` in the coordination root, or the same layout at the outside path).
    2. Prove every source is readable (`test -r <file>`, `curl -sI -o /dev/null -w '%{http_code}\n' <url>`).
-   3. Record the sources baseline for each repo source, exactly as in `kinds/findings.md § T-000 for this kind` (step 3), and note "Deliverable: ...; sources baseline" in the scratchpad.
+   3. Record the sources baseline for each repo source: `git -C <repo> status --porcelain > <report-dir>/baseline-<repo>.status` and `git -C <repo> rev-parse HEAD > <report-dir>/baseline-<repo>.head`. The scope check compares against it later, excluding the paths you write yourself (`deliverables/`, the plan, `SCRATCHPAD.md`), never against "empty". Note "Deliverable: ...; sources baseline" in the scratchpad.
    4. Check the tools the tasks name (`command -v pdftotext`, the render command if the plan names one) and the launch flags in `claude --help`.
 
 ## Preparing a document task
@@ -27,7 +27,7 @@ Preflight step 10, done by you:
 
 ## Accepting a document task
 
-   2. **Scope.** The sources are intact against the T-000 baseline (the check in `kinds/findings.md § Accepting a findings task`), and the worker wrote only `<report-dir>/<TASK>.md` and `<report-dir>/parts/<TASK>.md` (plus `<TASK>.html` for the consolidation when the format is html), checked with `find <report-dir> -type f -newer <report-dir>/<TASK>.package.md`. Then **check the part against the outline yourself**: the Document outline's exact headings for this task are all present and spelled the same, no heading of another task's section appears, and no source tag is outside the task's Sources. No secret, token, password or hash in the part.
+   2. **Scope.** The sources are intact against the T-000 baseline (the check in `kinds/findings.md § Accepting a findings task`, step 2: read that section even in a document-only plan), and the worker wrote only `<report-dir>/<TASK>.md` and `<report-dir>/parts/<TASK>.md` (plus `<TASK>.html` for the consolidation when the format is html), checked with `find <report-dir> -type f -newer <report-dir>/<TASK>.package.md`. Then **check the part against the outline yourself**: the Document outline's exact headings for this task are all present and spelled the same, no heading of another task's section appears, and no source tag is outside the task's Sources. No secret, token, password or hash in the part.
    3. **Verify.** Re-run the task's Verify commands; they are green. Spot-check a few claims against the source they cite.
    4. **Review**, as in `SKILL.md`: from the **second part on**, pass the integrated parts:
       ```bash
@@ -39,7 +39,7 @@ Preflight step 10, done by you:
 ## Fix rounds
 
 `CHANGES_REQUIRED` goes through `fix-round-template.md` like a code task: to the same worker session if it is alive, otherwise to a fresh `t0NN-f<N>`. Differences:
-   - the cwd is the coordination root, read-only on the sources, not a worktree: replace the template's worktree and commit lines accordingly, and replace its TDD bullet with "add the missing citations, remove or mark `Note:` what no source supports, resolve the contradiction as the orchestrator rules";
+   - the cwd is the coordination root, read-only on the sources, not a worktree: replace the template's worktree line (`You are … in its existing worktree <path> …`) with the coordination-root cwd, its commit lines (`Add new commits on top: …` and `the commit(s) and files changed;`) with "no commits", and its test-DB line (`Verify (the test DB env var is already exported): …`) with `Verify:` and the task's Verify commands; replace its TDD bullet (`Fix every Critical and Important finding. TDD: …`) with "add the missing citations, remove or mark `Note:` what no source supports, resolve the contradiction as the orchestrator rules";
    - the worker rewrites `<report-dir>/parts/<TASK>.md` and adds an "Attempt N (fix round)" section to its report;
    - scoped re-review with the next attempt number, again with `--integrated`; same escalation rule as code (a second failure on the same finding goes one model tier up).
 
@@ -52,7 +52,7 @@ Core Accepting step 6. After `APPROVED`: copy `<report-dir>/parts/<TASK>.md` to 
 The consolidation task (last wave, kind `document`) is accepted and integrated like any part, with these additions:
 
    - It reads only `deliverables/<run-id>/parts/`. Start it only when every part and every findings part is `integrated`.
-   - Accepting: no part's claim was changed (`grep -vxFf <report-dir>/parts/<consolidation TASK>.md deliverables/<run-id>/parts/T-004.md` prints the lines of a part the consolidation dropped or changed; run it for each part), the contradictions between parts are listed in its report rather than silently resolved, and all the fixed sections exist (executive summary, every part in outline order, confirmed findings, Corrected false positives, recommendation).
+   - Accepting: no part's claim was changed (`grep -vxFf <report-dir>/parts/<consolidation TASK>.md deliverables/<run-id>/parts/<document TASK>.md` prints the lines of a document part the consolidation dropped or changed; run it for each document part, not for findings parts, which the consolidation reshapes into its fixed sections; differences in headings are expected), the contradictions between parts are listed in its report rather than silently resolved, and all the fixed sections exist (executive summary, every part in outline order, confirmed findings, Corrected false positives, recommendation).
    - **html.** When the format is `html`, the consolidation worker generates `<report-dir>/parts/<consolidation TASK>.html` itself from its `.md`, as one file with inline CSS and no network loads, and again whenever the `.md` changes. It uses an external render command only if the plan names one as a decision. You run `grep -Eic '<script|<link[^>]*href="https?:|src="https?:' <report-dir>/parts/<consolidation TASK>.html`; it must print `0`. Open the html yourself. **Never hand-edit the html**: a defect goes back to the worker as a fix round that corrects the `.md` and renders again.
    - Place the deliverable (`<name>.md`, and `.html`) as soon as the consolidation is integrated, before the cross-cutting review is dispatched (core step 2b), and place it again after any later fix. The commit and the path for the user are core Closing steps 2b and 7. Any later fix that changes a part or the consolidation means rendering again, and repeating the html check.
 

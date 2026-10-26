@@ -93,7 +93,7 @@ Directly under each `### Task T-0NN: <title>` heading:
 - T-000 uses `**Model:** orchestrator`. Its steps are commands rather than TDD, and the integration gate is its check: it has no reviewer.
 - What T-000 contains depends on the kinds in the plan: see each kind file.
 - T-000 and reserved slots do not count when deciding which kinds a plan uses: a pure audit plan has no `code` kind because of T-000.
-- Reserved fix tasks get a single `### Tasks T-0NN … T-0MM: Reserved for review fixes` heading with no header line.
+- Reserved fix tasks get a single `### Tasks T-0NN … T-0MM: Reserved for fixes from <task(s) or review>` heading with no header line.
 
 ## What changes per kind
 
@@ -132,7 +132,7 @@ A plan reads only the kind files of the kinds it uses.
   - Its limits are written in the plan: it touches only tasks of this run in the confirmed list; it never deletes tasks or comments, never creates lists or folders, never changes assignees, due dates or other people's tasks, and never writes secrets or PII.
   - If the MCP fails, the worker reports it. The orchestrator queues the pending updates in the scratchpad and continues; no wave waits for ClickUp. The scratchpad records ClickUp sync separately from task status, and never says "synced" without reading the board back.
   - Close its pane at the end of the run, after the last event is applied and read back.
-- **Closing tasks.** Plan a read-only cross-cutting review on the most capable model, after the last feature task. Reserve IDs after it for fix tasks. Add "Orchestrator closing steps": local run if asked, final gate, vault sync, handoff. Push, PR and merge to a shared branch are listed as "only with explicit authorization". When the plan has findings or document tasks, add a consolidation task: a `document` task in the last wave. The cross-cutting review of a plan without code is a `findings` task over the deliverable (the read-only kind with a findings report). The closing order is consolidation task, then cross-cutting review, then reserved fix tasks; in a mixed plan the cross-cutting review is two tasks: the code review (`--role review`) of the integrated branch and a `findings` task over the deliverable. The report of a review over the deliverable stays in the report dir; it is not an audit part.
+- **Closing tasks.** Plan a read-only cross-cutting review on the most capable model, after the last feature task. Reserve IDs after it for fix tasks. Add "Orchestrator closing steps": local run if asked, final gate, vault sync, handoff. Push, PR and merge to a shared branch are listed as "only with explicit authorization". When the plan has findings or document tasks, add a consolidation task: a `document` task in the last wave of findings and document work, before the cross-cutting review. The cross-cutting review of a plan without code is a `findings` task over the deliverable (the read-only kind with a findings report). The closing order is consolidation task, then cross-cutting review, then reserved fix tasks; in a mixed plan the cross-cutting review is two tasks: the code review (`--role review`) of the integrated branch and a `findings` task over the deliverable. The report of a review over the deliverable stays in the report dir; it is not an audit part.
 
 ## Model Per Task
 
@@ -165,6 +165,8 @@ Run these on top of writing-plans' self-review:
 6. Decision statuses are honest: `approved` only if the user or the spec approved it; `adopted by orchestrator` only for routine decisions; every scope-changing decision the user has not answered says `to confirm`.
 7. ClickUp: the Orchestration section has the sync block (list id, status mapping, launch, event table) or says `**ClickUp:** none` with the reason; the board and task creation are a `to confirm` decision until the user answers; no task, package or Worker environment mentions ClickUp.
 9. Every task has a valid `Kind` or none; run the self-review section of each kind file the plan uses.
+
+Items 2, 3 and 8 live in `kinds/code.md` § Self-review (code).
 
 ## Handoff
 

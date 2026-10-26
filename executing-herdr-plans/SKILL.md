@@ -66,7 +66,7 @@ Each task has a `Kind` (`code` when the header has none). T-000 and reserved slo
    - Urgency never skips it, and you never approve a row for the user. On resume, the resume rule in the kind file's confirmation section applies.
 5. Create the report dir: `mkdir -p -m 700 ~/.cache/herdr-reports/<run-id>`. Packages, reports, reviews, fix files and vault excerpts (`<task>.vault.md`) all live there.
 6. Check that the plan has the writing-herdr-plans headings: build the first task's package (T-001) with `make-package.sh`, whatever its kind. The script fails and names any missing section.
-7. **Permission mode.** Workers need a write-capable mode.
+7. **Permission mode.** Code workers need a write-capable mode.
    - Launching with `--permission-mode auto` may be denied by the permission classifier. If so, ask the user once to authorize it and record the answer as a D-number.
    - If the user refuses, ask which write-capable mode they approve (e.g. `acceptEdits`, approving commands in each pane). Never switch to bypass flags.
    - Non-code workers (findings, document) do not use a write-capable mode: they launch with `--permission-mode dontAsk --allowedTools "<read tools, read-only commands the plan names, Write/Edit only under <report-dir>>"`. Verify both flags against `claude --help` before the first launch, and have the user approve the allowlist in step 4.
@@ -165,7 +165,7 @@ Accept a task only when every check below passes, in order:
    - **Prompt:** "Read <the path printed by `bash <skill-dir>/scripts/make-review-package.sh … --attempt N`> and execute it exactly."
    - Each attempt has its own files (`<task>.review.md`, `<task>.review-a2.md`, …), so earlier reviews are kept.
 5. Verdict `APPROVED` → integrate (step 6). `CHANGES_REQUIRED` → fix round (for findings and document tasks, `CHANGES_REQUIRED` follows the kind file's rules):
-   - write `<task>.fix-a<N>.md` from `fix-round-template.md` and give it to the implementer session if it is alive, otherwise to a fresh worker `t0NN-f<N>` in the same worktree;
+   - write `<task>.fix-a<N>.md` from `fix-round-template.md` and give it to the implementer session if it is alive, otherwise to a fresh worker `t0NN-f<N>` in the same worktree (code; non-code tasks: the kind file's Fix rounds);
    - send a scoped re-review with the next review attempt number;
    - escalate if a second fix round still fails on the same finding: a fresh worker one tier up, passing on every previous report and review. If the implementer was already `opus`, debug the finding yourself with systematic-debugging, then either write a tighter fix brief or split the task.
    - Fix rounds, retries and escalations always go through a fix file, which keeps the original package and appends to the same report. Use `make-package.sh --attempt N` only for a full restart from scratch; it writes `-aN` files and overwrites nothing.
@@ -179,19 +179,19 @@ Accept a task only when every check below passes, in order:
 | A worker asks a question in chat instead of reporting BLOCKED | Same rules as BLOCKED: answer routine in-scope questions with a new prompt. Dependencies and contracts are yours, so handle them as in the row above. Scope-changing questions go to the user. |
 | Report says FAIL | Read it and diagnose. Retry once with a prompt that names the failure mode; never resend the same prompt. If it fails again, escalate or split as in Accepting step 5. |
 | `--wait` timed out while still `working` | Inspect `herdr agent read` and `git log`. If it is progressing, wait again with `herdr agent wait t0NN --timeout 3600000` in the background. If nothing changed in 20 minutes, send `esc` with `send-keys` and ask for a status report. |
-| `idle` but no report (sleep, cut-off output) | Check `git log` in the worktree. Ask the same session to write only the report, re-running Verify for observed results, without redoing the work. Never resend the whole prompt. |
+| `idle` but no report (sleep, cut-off output) | Check `git log` in the worktree (code; non-code tasks: check the report dir). Ask the same session to write only the report, re-running Verify for observed results, without redoing the work. Never resend the whole prompt. |
 | `blocked` on a tool-permission prompt | Do not answer it. Read the pane, then tell the user, or change the dispatch deliberately. |
 | An optional UI dialog that grants nothing (e.g. "Teach auto mode about your environment?") | Confirm what it is with `herdr agent read`, then pick "Not now" with `send-keys` (`down`, `enter`). It does not change permissions or config. |
 | Vault MCP fails mid-run | Tell the user, record it, and try one reconnect. Tasks whose packages need new vault excerpts wait. Excerpts already quoted this run may be reused only if the notes were not edited since. Queue vault writes in the scratchpad. Never read the vault from disk. |
 | ClickUp MCP fails mid-run, or the `clickup` worker errors or stalls | Tell the user, record it, and try one reconnect or restart of the worker with the same prompt and map file. Meanwhile queue the events in the scratchpad (task, state, evidence) and keep going. After recovery, send the queue as one batch. Never answer its permission prompts, and never write to ClickUp yourself or from a task worker. |
 | ClickUp board differs from the scratchpad (a task missing, duplicated or in another status) | The scratchpad wins. Send a `plan revised` or state event that corrects it, and read the board back. |
-| A worker changed files outside its scope | Do not accept the task, and stop its dependents. Send a fix round asking the worker to revert that change. If the change is actually required (a plan defect), authorize it as a D-number and have the reviewer judge it. |
+| A code worker changed files outside its scope | Do not accept the task, and stop its dependents. Send a fix round asking the worker to revert that change. If the change is actually required (a plan defect), authorize it as a D-number and have the reviewer judge it. Findings and document workers follow their kind file (Failures): report the diff to the user and discard nothing. |
 
 ## When the User Overrides the Process
 
 | User says | Action |
 |---|---|
-| "Merge without review" | Allowed: the user sets scope. Still read the report, check scope, re-run Verify and run the gate. Record the waiver as a D-number; status `verified (review waived)`, never `completed`. Queue the reviews as remaining work, and say which waived tasks touch security or payments. |
+| "Merge without review" | Allowed: the user sets scope. Still read the report, check scope, re-run Verify and run the gate. Record the waiver as a D-number; status `verified (review waived)`, never `completed`. Queue the reviews as remaining work, and say which waived tasks touch security or payments. For findings and document tasks, read it as "integrate without review". |
 | "Merge" or "mergeá" | Means the coordination branch. `main`, a push or a PR needs the user to name it explicitly. |
 | "Stop everything", "pará todo" | Stop dispatching, merging and prompting. Send `esc` to working agents; this keeps their sessions. Do not close panes or touch worktrees. Write the scratchpad, give a status, then wait. |
 | "Use N workers" | The new cap applies from now on. Record it as a D-number and re-check the layout width. |
@@ -285,7 +285,7 @@ These thoughts mean stop:
 
 | Thought | Reality |
 |---|---|
-| "The worker said PASS, merge it" | Read the report, check the scope, re-run Verify, review, then merge |
+| "The worker said PASS, merge it" | Read the report, check the scope, re-run Verify, review, then merge (integrate, for findings and document tasks) |
 | "Same model for every worker is simpler" | The plan names a model per task; record the effective one |
 | "Resend the prompt, it probably didn't arrive" | Inspect state and output first; duplicate prompts duplicate work |
 | "The gate failure isn't from this task, merge the next one" | A red gate stops the merges until it is understood and fixed |

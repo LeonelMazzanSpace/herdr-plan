@@ -74,6 +74,8 @@ It is step 4 of the `executing-herdr-plans` preflight. Each row of the table has
 
 You are only asked about `conflict`, `undecided` and `redundant`, with a recommendation and a one-line tradeoff. Whatever is confirmed is recorded as an `approved` decision in the plan and the scratchpad. If your answer changes the plan, it is revised before starting.
 
+Findings and document tasks get the same step as a scope and access confirmation (sources, access, deliverable), described in `executing-herdr-plans/kinds/findings.md` and `executing-herdr-plans/kinds/document.md`.
+
 ### E2E, usability and animations
 
 In plans with an interface, `writing-herdr-plans` adds a task after the last feature. It only writes tests and a report, and never touches the app's code:
