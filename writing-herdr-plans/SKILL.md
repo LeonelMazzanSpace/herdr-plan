@@ -1,24 +1,25 @@
 ---
 name: writing-herdr-plans
-description: Use when writing an implementation plan from an approved spec that will be executed by an orchestrator Claude session delegating tasks to independent Claude Code workers in Herdr panes, each in its own git worktree
+description: Use when writing a plan — code, an audit, research, documentation, a proposal or a migration plan — from an approved spec that will be executed by an orchestrator Claude session delegating tasks to independent Claude Code workers in Herdr panes
 ---
 
 # Writing Herdr Plans
 
 ## Overview
 
-A plan for Herdr orchestration is a `superpowers:writing-plans` plan plus everything an orchestrator needs to run it with independent workers: fixed contracts, a wave DAG with a model per task, a reproducible worker environment, and sections with fixed headings so each worker's package can be cut out of the plan mechanically.
+A plan for Herdr orchestration is a `superpowers:writing-plans` plan, whatever the work (code, an audit, research, documentation), plus everything an orchestrator needs to run it with independent workers: fixed contracts, a wave DAG with a model per task, a reproducible worker environment, and sections with fixed headings so each worker's package can be cut out of the plan mechanically.
 
-**REQUIRED SUB-SKILL:** Use superpowers:writing-plans and follow it entirely (header, Global Constraints, Review Focus, file structure, TDD task steps, no placeholders, self-review). This skill only adds to it and overrides it where stated.
+**REQUIRED SUB-SKILL:** Use superpowers:writing-plans and follow it entirely (header, Global Constraints, Review Focus, file structure, TDD task steps for code tasks, no placeholders, self-review). This skill only adds to it and overrides it where stated.
 
 **Core principle:** a worker sees only its package, never the conversation, the vault or other tasks. Anything a worker needs must be in a plan section that gets copied into its package.
 
-**Announce at start:** "I'm using the writing-herdr-plans skill to create the orchestrated implementation plan."
+**Announce at start:** "I'm using the writing-herdr-plans skill to create the orchestrated plan."
 
 ## When to Use
 
 - The user asks for a plan that will be executed "with herdr", by parallel workers, or by an orchestrator.
 - The project's instructions define an orchestrator/worker split, a scratchpad or a delegation contract.
+- The work is an audit, research, documentation, a proposal or a migration plan that is split across workers.
 
 Not for: plans executed in one session (use superpowers:writing-plans alone), or a request that only needs analysis.
 
@@ -56,6 +57,11 @@ Not for: plans executed in one session (use superpowers:writing-plans alone), or
    - Everything else is routine: internal naming, library choice within the stack, file layout. Adopt it yourself with status `adopted by orchestrator`.
    - When the spec, the vault and the user disagree, record the discrepancy; the user's current instruction wins.
    - Global stack defaults (e.g. a company CLAUDE.md) yield to an approved spec that names a different choice. Record the discrepancy as a D-number.
+   - For findings and document tasks, these also change scope:
+     - access to production or real accounts;
+     - credentials, by name only;
+     - worker network access;
+     - the deliverable's audience and location (the deliverable decision in Global Constraints).
 
 ## Plan Document Structure
 
@@ -63,13 +69,13 @@ Use these headings **exactly** and in this order. They are the contract with the
 
 | Section | Content | Copied into worker packages |
 |---|---|---|
-| Header (writing-plans) | Goal, Architecture, Tech Stack, Spec, vault location. The "For agentic workers" line adds: "executed with executing-herdr-plans; a worker implements only its own task". | no |
+| Header (writing-plans) | Goal, Architecture, `Tech Stack` for code tasks and/or `Sources and tools` for findings and document tasks, Spec, vault location. The "For agentic workers" line adds: "executed with executing-herdr-plans; a worker implements only its own task". | no |
 | `## Decisions recorded for this plan` | Table: `# · Decision · Source · Status` (`approved` / `adopted by orchestrator` / `to confirm`). IDs D1…Dn continue during execution. | yes |
 | `## Global Constraints` | writing-plans rules + ownership rules (below). | yes |
 | `## Review Focus` | writing-plans rules; each item names the owning task in brackets. | yes |
 | `## Orchestration (orchestrator-only section)` | Waves/DAG, model table, launch recipe, ClickUp sync, acceptance, integration gate. Template: `orchestration-section-template.md`. | no |
 | `## Worker environment` | What a worker's checkout looks like: branch naming, its own DB/ports/env var names, how to run commands, "no long-running servers". | yes |
-| Contract sections (`## Data contract`, `## HTTP contract`, `## Frontend route map`, …) | Fixed shared contracts: schemas, endpoints with exact shapes, error codes, routes, shared copy. | only those a task lists |
+| Contract sections (`## Data contract`, `## HTTP contract`, `## Frontend route map`, …; for findings and document tasks also `## Findings format`, `## Severity scale`, `## Control list`, `## Document outline`, `## Style guide`, `## Sources`, `## Comparison criteria`) | Fixed shared contracts: schemas, endpoints with exact shapes, error codes, routes, shared copy. | only those a task lists |
 | `## Tasks` | `### Task T-000: …` … one per task. | only its own task |
 | `## Self-review` | writing-plans self-review plus the additions below. | no |
 
@@ -78,25 +84,33 @@ Use these headings **exactly** and in this order. They are the contract with the
 Directly under each `### Task T-0NN: <title>` heading:
 
 ```markdown
-**Model:** opus · **Depends on:** T-001, T-002 integrated · **Parallel with:** T-005, T-006 · **Contracts:** Data contract, HTTP contract · **Vault:** concepts/Pedido, failures/Sobreventa de stock
+**Kind:** code · **Model:** opus · **Depends on:** T-001, T-002 integrated · **Parallel with:** T-005, T-006 · **Contracts:** Data contract, HTTP contract · **Vault:** concepts/Pedido, failures/Sobreventa de stock
 ```
 
-The rest of the task follows the writing-plans task template: Files, Interfaces, numbered **Acceptance criteria**, TDD steps, and a final **Verify and commit** step with exact commands. In the commit step, stage explicit paths only.
+`Kind` is `code`, `findings` or `document`; a task without it is `code`.
 
 - With no vault, write `**Vault:** none`; with no contracts, `**Contracts:** none`.
 - T-000 uses `**Model:** orchestrator`. Its steps are commands rather than TDD, and the integration gate is its check: it has no reviewer.
+- What T-000 contains depends on the kinds in the plan: see each kind file.
 - Reserved fix tasks get a single `### Tasks T-0NN … T-0MM: Reserved for review fixes` heading with no header line.
+
+## What changes per kind
+
+| Kind | What the worker delivers | Read when the plan has it |
+|---|---|---|
+| `code` | Code on its own branch, with tests and a green Verify | `kinds/code.md` |
+| `findings` | A findings report with evidence, from read-only access | `kinds/findings.md` |
+| `document` | A document part with sources, written under the report dir | `kinds/document.md` |
+
+A plan reads only the kind files of the kinds it uses.
 
 ## Rules That Make Parallel Workers Possible
 
-- **T-000 belongs to the orchestrator.** It installs every dependency the plan needs, adds scripts, isolates test databases, and runs the gate. Afterwards, workers never touch `package.json` or lockfiles; one that needs a dependency stops with BLOCKED. Check new major versions for module-format breaks: ESM-only packages break CommonJS test runners. T-000 is tooling only: dependencies, scripts, config, test isolation, and framework generators (`nest new`, `create vite`) in a greenfield repo. Shared code is a worker task in wave 1 that replaces the generated files where needed: helpers, module and route registration, test utilities, and the schema and migrations. Tasks in the same wave cannot use each other's output. A wave-1 test that would need another wave-1 utility uses the framework or data source directly.
-- **Permission mode is an execution decision.** Record it as `to confirm` (e.g. "workers run with `--permission-mode auto`, authorized by the user at launch"). In a mode that asks for every command, a worker stalls, and the orchestrator must never answer its prompts.
+- **Permission mode is an execution decision.** Record it as `to confirm` (e.g. "workers run with `--permission-mode auto`, authorized by the user at launch"). In a mode that asks for every command, a worker stalls, and the orchestrator must never answer its prompts. Findings and document workers run with `--permission-mode dontAsk --allowedTools "<read tools, read-only commands the plan names, Write/Edit only under <report-dir>>"`, verified against `claude --help` at preflight.
 - **Values known only at execution** are written as shell variables or `<…>` in the Orchestration section and marked "resolved at execution". This is the only exemption from writing-plans' "no placeholders" rule.
   - These values: worker pane ids, base commits, the run id's date.
   - Known at plan time and written concretely: COORDINATION_ROOT (resolved at startup) and the orchestrator pane (`$HERDR_PANE_ID`). Mark the pane "re-read at execution", in case another session executes.
 - **Contracts before parallelism.** Data shapes, endpoints, error codes and routes are written in the plan before any wave that uses them. A worker that finds a contract impossible reports BLOCKED; it never redefines the contract.
-- **Disjoint files within a wave.** Two tasks in the same wave must not create or modify the same file. Shared registration files (app module, router, barrel exports) are either pre-created by a foundation task or listed as "orchestrator resolves trivial merge conflicts".
-- **Test isolation per worker.** Each worker gets its own dev DB, test DB and ports: backend and frontend dev servers too, if a task starts them. A browser smoke task states in its Verify step that it may start servers on its own ports. The test script reads the DB name from an env var, for example `E2E_DATABASE_NAME`. The shared test cleanup helper must truncate every table, including tables added by later tasks.
 - **Waves.** A wave starts only when its dependencies are integrated and the gate is green. **At most 6 live worker panes** at once, counting implementers, reviewers and fix workers.
   - The cap is the user's standing rule, not a Herdr limit. Only a new explicit instruction from the user changes it; record that as a D-number.
   - A wave wider than the cap stays one wave, marked "queued": each task starts as soon as a pane frees up and its own dependencies are verified. It does not wait for the rest of its wave.
@@ -117,14 +131,7 @@ The rest of the task follows the writing-plans task template: Files, Interfaces,
   - Its limits are written in the plan: it touches only tasks of this run in the confirmed list; it never deletes tasks or comments, never creates lists or folders, never changes assignees, due dates or other people's tasks, and never writes secrets or PII.
   - If the MCP fails, the worker reports it. The orchestrator queues the pending updates in the scratchpad and continues; no wave waits for ClickUp. The scratchpad records ClickUp sync separately from task status, and never says "synced" without reading the board back.
   - Close its pane at the end of the run, after the last event is applied and read back.
-- **E2E, usability and motion task (plans with a UI).** After the last feature task, plan one task `E2E, usability and motion pass`, on `sonnet` (`opus` if the app has payments or auth flows). It is test-and-evidence only: it adds files under the e2e folder and writes a findings report, and never edits app code. Its findings become fix tasks. Its Contracts list includes `Animation guidelines`, copied from `animations-guidelines.md` in this skill.
-  - **Functional E2E:** the critical flows of each role, on a desktop viewport and a mobile viewport (touch enabled), against local servers on the worker's own ports.
-  - **Usability, as tasks, not pages.** For each role, write 3–5 goal-based tasks in the plan (e.g. "a client books a class and pays"), each with a measurable pass criterion: reachable in at most N steps, a visible response to every action (loading, success, error), error messages that say what to do next, empty, loading and error states present, keyboard reachability and visible focus, touch targets of at least 44px on mobile, and no horizontal scroll at 360px. Each failed criterion is a finding with a screenshot.
-  - **Motion audit** against the Animation guidelines, using the "Checks" table in that file: durations, allowed easings, hover transitions gated by `(hover: hover) and (pointer: fine)`, `prefers-reduced-motion` run, origin-aware popovers, transform and opacity only. Run key flows with `reducedMotion: 'reduce'` as well.
-  - **Evidence:** a Playwright run with screenshots (and a trace or video for the transitions it judged). Findings are classified Critical, Important or Minor like review findings; a worker may not waive one.
-  - **Design improvement notes.** Where the audit shows the design system could be better (inconsistent durations, missing states, weak feedback), the report lists them as proposals, labeled as proposals, never applied by this task.
-  - A plan without UI omits the task and says so in the Orchestration section.
-- **Closing tasks.** Plan a read-only cross-cutting review on the most capable model, after the last feature task. Reserve IDs after it for fix tasks. Add "Orchestrator closing steps": local run if asked, final gate, vault sync, handoff. Push, PR and merge to a shared branch are listed as "only with explicit authorization".
+- **Closing tasks.** Plan a read-only cross-cutting review on the most capable model, after the last feature task. Reserve IDs after it for fix tasks. Add "Orchestrator closing steps": local run if asked, final gate, vault sync, handoff. Push, PR and merge to a shared branch are listed as "only with explicit authorization". When the plan has findings or document tasks, add a consolidation task: a `document` task in the last wave. The cross-cutting review of a plan without code is a `findings` task over the deliverable (the read-only kind with a findings report).
 
 ## Model Per Task
 
@@ -135,6 +142,7 @@ Choose by difficulty, ambiguity, risk and needed context. Do not default every t
 | Extraction, classification, mechanical edits with clear criteria | `haiku` |
 | Routine implementation, familiar integrations, feature tests, screens against a fixed contract | `sonnet` |
 | Architecture, security (auth, tokens, uploads), transactions/locking, hard debugging, cross-cutting review | `opus` (or a more capable model you verified) |
+| Findings and document tasks against a fixed format | `sonnet`; `opus` for security, compliance or architecture audits |
 
 - Give every task a one-line rationale in the model table.
 - Reviewer model ≥ implementer model; `opus` reviews security and transaction tasks.
@@ -151,14 +159,11 @@ Next to the plan, write `<plan-name>-summary.md` in the user's language. It has 
 Run these on top of writing-plans' self-review:
 
 1. Every task has the header line, and each name in its Contracts list matches a `## ` heading exactly.
-2. No file appears in two tasks of the same wave, except declared shared registration files.
-3. Every dependency any task uses is installed in T-000.
 4. Every task's Verify step runs with only the Worker environment variables.
 5. Every Review Focus item names a task, and that task has the test.
 6. Decision statuses are honest: `approved` only if the user or the spec approved it; `adopted by orchestrator` only for routine decisions; every scope-changing decision the user has not answered says `to confirm`.
 7. ClickUp: the Orchestration section has the sync block (list id, status mapping, launch, event table) or says `**ClickUp:** none` with the reason; the board and task creation are a `to confirm` decision until the user answers; no task, package or Worker environment mentions ClickUp.
-
-8. UI plans: the `## Animation guidelines` contract section exists, every UI task lists it in its Contracts, and the E2E, usability and motion task has usability tasks with measurable criteria for every role. A plan without UI says so.
+9. Every task has a valid `Kind` or none; run the self-review section of each kind file the plan uses.
 
 ## Handoff
 
@@ -175,11 +180,7 @@ Run these on top of writing-plans' self-review:
 | Report files inside each worktree (`.worker/…`) | One private run directory, e.g. `~/.cache/herdr-reports/<run-id>`, mode 0700; it survives worktree cleanup and reviewers find every report there |
 | Launch recipe without `--timeout`, permission mode or `--add-dir <report-dir>` | Copy the verified recipe from the template; the worker cannot write its report outside its checkout without `--add-dir` |
 | Packages "composed by hand" with excerpts left as `<…>` | Fixed headings + task header line; the orchestrator generates packages with the script |
-| A new branch per attempt | One branch per task; fix rounds add commits on top (no amend or rebase) |
 | Model chosen once for all tasks | Model per task with a rationale; escalate on repeated failure |
-| Dependencies added by whichever task first needs them | All in T-000; a worker needing one stops with BLOCKED |
 | No final cross-cutting review | Read-only opus review plus reserved fix task IDs |
 | Orchestrator or task workers update ClickUp themselves | Only the `clickup` sync worker writes to the board; the orchestrator sends it events |
-| E2E step that only clicks through happy paths and asserts "page loads" | Usability tasks with measurable criteria per role, plus the motion audit; both produce screenshots and a findings report |
-| Animation rules left to each UI worker's taste | `## Animation guidelines` as a contract section in every UI task |
 | Creating ClickUp tasks while planning, or guessing the list | Ask which list; tasks are created at execution, after the user confirms the decision |
