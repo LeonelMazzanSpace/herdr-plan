@@ -17,8 +17,9 @@
 # --coord-branch. They read the sources the package lists and write only under
 # <report-dir> (the report, evidence/<task>/ or parts/<task>.md).
 #
-# --role review packages a read-only task (e.g. the cross-cutting review): no
-# edits, no commits, findings report.
+# --role review packages a read-only code task (e.g. the cross-cutting review of
+# code): no edits, no commits, findings report. It is code-only: a non-code review
+# is a findings task.
 # Attempt 1 writes <report-dir>/<task>.package.md and asks for <task>.md;
 # attempt N > 1 writes <task>.package-aN.md and asks for <task>-aN.md, so a
 # full restart never overwrites earlier files. Fix rounds use
@@ -96,8 +97,11 @@ is_none() {
 TASK_TEXT=$(section "Task $TASK:" 3)
 [ -n "$TASK_TEXT" ] || die "task heading not found: '### Task $TASK:' (append the task to the plan first)"
 
+# The task header is the first line starting with ** right under the heading; its
+# fields are read from there only, never from the task body.
+TASK_HEADER=$(printf '%s\n' "$TASK_TEXT" | awk 'NR > 1 && NF { if ($0 ~ /^\*\*/) print; exit }')
 header_field() {
-  printf '%s\n' "$TASK_TEXT" | grep -m1 -o "\*\*$1:\*\* [^·]*" | sed -e "s/^\*\*$1:\*\* //" -e 's/[[:space:]]*$//' || true
+  printf '%s\n' "$TASK_HEADER" | grep -m1 -o "\*\*$1:\*\* [^·]*" | sed -e "s/^\*\*$1:\*\* //" -e 's/[[:space:]]*$//' || true
 }
 trim() { printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
 lower() { printf '%s' "$1" | tr 'A-Z' 'a-z'; }
@@ -116,7 +120,7 @@ KIND=${KIND_HEADER:-${KIND_FLAG:-code}}
 
 if [ "$KIND" = code ]; then
   for v in WT BRANCH BASE COORD_BRANCH; do
-    eval "[ -n \"\${$v}\" ]" || die "missing --$(printf '%s' "$v" | tr 'A-Z_' 'a-z-')"
+    eval "[ -n \"\${$v}\" ]" || die "missing --$(printf '%s' "$v" | sed 's/^WT$/WORKTREE/' | tr 'A-Z_' 'a-z-')"
   done
 else
   [ "$ROLE" = implement ] || die "--role review is only for code tasks"
@@ -136,7 +140,7 @@ SUFFIX=; [ "$ATTEMPT" = 1 ] || SUFFIX="-a$ATTEMPT"
 OUT="$REPORTS/$TASK.package$SUFFIX.md"
 REPORT="$REPORTS/$TASK$SUFFIX.md"
 trap 'rm -f "$OUT.tmp"' EXIT
-DIFF_BASE="\$(git merge-base $COORD_BRANCH HEAD)"
+DIFF_BASE=; [ "$KIND" != code ] || DIFF_BASE="\$(git merge-base $COORD_BRANCH HEAD)"
 
 LOCATION_LINE="Checkout/worktree, branch, and base commit: \`$WT\` · branch \`$BRANCH\` · base \`$BASE\` (coordination branch \`$COORD_BRANCH\`)."
 ALLOWED_LINE="Allowed files and scope boundaries: exactly the \"Files\" list of your task. Do not touch dependency manifests or lockfiles (need a dependency → BLOCKED). Do not touch other worktrees, other databases or the coordination checkout."
@@ -152,7 +156,7 @@ if [ "$KIND" = findings ]; then
   ALLOWED_LINE="Allowed writes: only \`$REPORT\` and \`$REPORTS/evidence/$TASK/\` (create the folder if missing). Everything else is read-only: do not edit, create or delete anything in the sources or the coordination checkout, and do not touch dependency manifests or lockfiles (need a dependency → BLOCKED)."
   OUTPUT="Output: write \`$REPORT\` with: Task, Attempt, Status (PASS|FAIL|BLOCKED), the model you ran as (from your session/status line if visible, else \"not verified\"), the scope covered and not covered, commands run with observed results, and findings in the \"Findings format\" contract, each with the ID \`$TASK-F<NN>\` (F01, F02, ...) and its evidence saved under \`$REPORTS/evidence/$TASK/\`. No secrets, tokens, passwords or hashes in the report or the evidence."
 elif [ "$KIND" = document ]; then
-  HTML_PART=; printf '%s\n' "$TASK_TEXT" | grep -qi 'html' && HTML_PART=" and \`$REPORTS/parts/$TASK.html\`"
+  HTML_PART=; printf '%s\n' "$TASK_TEXT" | grep -qiE '\.html|format:\*{0,2}[[:space:]]+html' && HTML_PART=" and \`$REPORTS/parts/$TASK.html\`"
   ROLE_LINE="document_worker (single task, no orchestration)"
   OBJECTIVE="write **only** the document part of the task section \"$TASK\" quoted at the end to \`$REPORTS/parts/$TASK.md\`, following the \"Document outline\" contract and citing a \"Sources\" entry for every claim, and write the report. **Do not edit the sources and do not commit.**"
   ALLOWED_LINE="Allowed writes: only \`$REPORT\` and \`$REPORTS/parts/$TASK.md\`$HTML_PART (create the folder if missing). Everything else is read-only: do not edit, create or delete anything in the sources or the coordination checkout, and do not touch dependency manifests or lockfiles (need a dependency → BLOCKED)."

@@ -87,3 +87,27 @@ Critical, Important, Minor.
 **Deliverable format:** md.
 
 - [ ] **Step 1:** draft the appendix.
+
+### Task T-008: Write a section that only mentions html
+
+**Kind:** document · **Model:** sonnet · **Depends on:** T-002 · **Contracts:** Document outline, Sources · **Vault:** none
+
+**Deliverable format:** md. The old html report is out of scope.
+
+- [ ] **Step 1:** draft the section.
+
+### Task T-009: Write a section for an html deliverable
+
+**Kind:** document · **Model:** sonnet · **Depends on:** T-002 · **Contracts:** Document outline, Sources · **Vault:** none
+
+**Deliverable format:** html.
+
+- [ ] **Step 1:** draft the section.
+
+### Task T-010: Build a model that quotes a Kind in its body
+
+**Model:** sonnet · **Depends on:** none · **Contracts:** Data contract · **Vault:** none
+
+The old audit task said **Kind:** findings · **Model:** opus; this task is code.
+
+- [ ] **Step 1:** write the model.

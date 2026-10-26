@@ -130,8 +130,9 @@ What to check:
 1. Every section of the "Document outline" contract in the package is present. List each section that is missing.
 2. Every claim has a source cited from the "Sources" contract or the task, and the source says it. Open the sources and check them. List each claim without a source (state its severity), and each claim the source does not support.
 3. $INTEGRATED_CHECK
-4. The Global Constraints and the style rules in the package hold: no secrets, tokens, passwords or hashes in the part.
-5. Run the task's verification commands yourself and record the observed results.
+4. The Global Constraints and the style rules in the package hold: no secrets, tokens, passwords or hashes in the part; the author wrote only its part and its report under the report dir.
+5. The author report lists the sources consulted and the open questions, and every source cited in the part is among them. List each cited source the report does not list.
+6. Run the task's verification commands yourself and record the observed results.
 Severity: Critical · Important · Minor, as in the package.
 Output: write \`$REVIEW\` with: verdict, the model you ran as, commands run with observed results, and findings (severity, location in the part, problem, why it matters, suggested fix). Verdict is CHANGES_REQUIRED when a Critical/Important claim has no source, the part would contradict an integrated part, or a section of the outline is missing; otherwise APPROVED. Minor findings are notes and do not by themselves require changes. No secrets in the report.
 End your final message with \`STATUS: PASS\` (review completed, whatever the verdict) or \`STATUS: BLOCKED\`/\`FAIL\`, and \`REPORT: $REVIEW\`.

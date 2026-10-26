@@ -65,6 +65,18 @@ run "$SCRIPT" "${COMMON[@]}" --task T-007
 if [ "$RC" = 0 ] && ! grep '^Allowed writes:' "$REPORTS/T-007.package.md" | grep -qF '.html'; then pass document_md_no_html_write
 else bad document_md_no_html_write "rc=$RC or html path present for an md deliverable"; fi
 
+run "$SCRIPT" "${COMMON[@]}" --task T-008
+if [ "$RC" = 0 ] && ! grep '^Allowed writes:' "$REPORTS/T-008.package.md" | grep -qF '.html'; then pass document_html_word_alone_no_html_write
+else bad document_html_word_alone_no_html_write "rc=$RC or html path present when the task only mentions html"; fi
+
+run "$SCRIPT" "${COMMON[@]}" --task T-009
+if [ "$RC" = 0 ] && grep '^Allowed writes:' "$REPORTS/T-009.package.md" | grep -qF 'parts/T-009.html'; then pass document_format_html_write_allowed
+else bad document_format_html_write_allowed "rc=$RC or html path missing for a format: html task"; fi
+
+run "$SCRIPT" "${COMMON[@]}" "${CODE_ARGS[@]}" --task T-010
+if [ "$RC" = 0 ] && pkg_has "$REPORTS/T-010.package.md" 'implement_worker'; then pass kind_read_only_from_header_line
+else bad kind_read_only_from_header_line "rc=$RC $ERR"; fi
+
 run "$SCRIPT" "${COMMON[@]}" --task T-004
 if [ "$RC" = 0 ] && pkg_has "$REPORTS/T-004.package.md" 'findings_worker'; then pass kind_normalized
 else bad kind_normalized "rc=$RC $ERR"; fi
@@ -84,7 +96,30 @@ expect_fail kind_flag_conflict "--kind document contradicts Kind findings in T-0
 run "$SCRIPT" "${COMMON[@]}" --task T-002 --worktree /x
 expect_fail worktree_rejected_for_findings "--worktree is only for code tasks"
 
+run "$SCRIPT" "${COMMON[@]}" --task T-002 --branch b
+expect_fail branch_rejected_for_findings "--branch is only for code tasks"
+
+run "$SCRIPT" "${COMMON[@]}" --task T-002 --base abc123
+expect_fail base_rejected_for_findings "--base is only for code tasks"
+
+run "$SCRIPT" "${COMMON[@]}" --task T-002 --coord-branch coord
+expect_fail coord_branch_rejected_for_findings "--coord-branch is only for code tasks"
+
+run "$SCRIPT" "${COMMON[@]}" --task T-002 --role review
+expect_fail role_review_rejected_for_findings "--role review is only for code tasks"
+
+run "$SCRIPT" "${COMMON[@]}" --task T-003 --role review
+expect_fail role_review_rejected_for_document "--role review is only for code tasks"
+
+run "$SCRIPT" "${COMMON[@]}" --task T-001 --branch feature/x --base abc123 --coord-branch coord
+expect_fail code_requires_worktree "missing --worktree"
+
 run "$SCRIPT" "${COMMON[@]}" --task T-006
 expect_fail vault_required_for_findings "pass --vault-excerpts"
+
+# --kind findings on a task with no Kind header makes it a findings task.
+run "$SCRIPT" "${COMMON[@]}" --task T-001 --kind findings
+if [ "$RC" = 0 ] && pkg_has "$REPORTS/T-001.package.md" 'findings_worker'; then pass kind_flag_on_headerless_task
+else bad kind_flag_on_headerless_task "rc=$RC $ERR"; fi
 
 exit "$fail"

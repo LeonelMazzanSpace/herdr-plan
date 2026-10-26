@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks that every non-blank line of an old file still exists, unchanged, in
-# the new files or in the allowlist (the old lines a plan told us to change).
+# the new files, as many times as it appeared in the old file, or in the
+# allowlist (the old lines a plan told us to change).
 #
 #   check-moved-text.sh --old <rev>:<path> --allow <file> <new-file>...
 #
@@ -31,13 +32,17 @@ git -C "$ROOT" show "$old" > "$WORK/old" 2> "$WORK/err" || { printf 'cannot read
 for f in "$@"; do
   [ -f "$f" ] || { printf 'new file not found: %s\n' "$f" >&2; exit 1; }
 done
-for f in "$allow" "$@"; do cat "$f"; printf '\n'; done > "$WORK/pool"
+{ cat "$allow"; printf '\n'; } > "$WORK/allow"
+for f in "$@"; do cat "$f"; printf '\n'; done > "$WORK/new"
 
-status=0
-while IFS= read -r line || [ -n "$line" ]; do
-  case $line in *[![:space:]]*) ;; *) continue ;; esac
-  grep -Fxq -- "$line" "$WORK/pool" && continue
-  printf 'missing: %s\n' "$line"
-  status=1
-done < "$WORK/old"
-exit "$status"
+# An old line is accepted when it is allowlisted or when the new files hold it at
+# least as many times as the old file did. Blank lines are skipped.
+awk '
+  FNR == 1 { file++ }
+  file == 1 { allowed[$0] = 1; next }
+  file == 2 { have[$0]++; next }
+  $0 !~ /[^[:space:]]/ { next }
+  { seen[$0]++ }
+  !($0 in allowed) && seen[$0] > have[$0] { print "missing: " $0; bad = 1 }
+  END { exit bad }
+' "$WORK/allow" "$WORK/new" "$WORK/old"

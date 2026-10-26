@@ -50,6 +50,25 @@ check --old "$OLD" --allow "$WORK/empty.txt" "$WORK/reworded.md"
 if [ "$RC" = 1 ] && printf '%s' "$OUT" | grep -qF -- 'missing:'; then pass check_reworded_line_reported
 else bad check_reworded_line_reported "rc=$RC out=$OUT"; fi
 
+# A line that appears twice in the old file must appear twice in the new files.
+DUP='|---|---|'
+awk -v dup="$DUP" '$0 == dup && !skipped { skipped = 1; next } { print }' "$WORK/full.md" > "$WORK/once.md"
+check --old "$OLD" --allow "$WORK/empty.txt" "$WORK/once.md"
+if [ "$RC" = 1 ] && printf '%s' "$OUT" | grep -qF -- "missing: $DUP"; then pass check_repeated_line_needs_every_occurrence
+else bad check_repeated_line_needs_every_occurrence "rc=$RC out=$OUT"; fi
+
+# Two files holding one occurrence each count as two.
+printf '%s\n' "$DUP" > "$WORK/dup.md"
+check --old "$OLD" --allow "$WORK/empty.txt" "$WORK/once.md" "$WORK/dup.md"
+if [ "$RC" = 0 ]; then pass check_repeated_line_counted_across_files
+else bad check_repeated_line_counted_across_files "rc=$RC out=$OUT"; fi
+
+# An allowlisted line is accepted whatever its count.
+printf '%s\n' "$DUP" > "$WORK/dup.txt"
+check --old "$OLD" --allow "$WORK/dup.txt" "$WORK/once.md"
+if [ "$RC" = 0 ]; then pass check_repeated_allowlisted_line_accepted
+else bad check_repeated_allowlisted_line_accepted "rc=$RC out=$OUT"; fi
+
 check --old "$OLD" "$WORK/full.md"
 if [ "$RC" = 1 ] && printf '%s' "$OUT" | grep -qF -- 'usage'; then pass check_usage_without_allow
 else bad check_usage_without_allow "rc=$RC out=$OUT"; fi

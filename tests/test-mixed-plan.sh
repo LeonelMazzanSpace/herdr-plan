@@ -18,6 +18,9 @@ fail=0
 pass() { printf 'ok %s\n' "$1"; }
 bad() { printf 'FAIL %s: %s\n' "$1" "$2"; fail=1; }
 
+# gq: grep without -q, so a pipeline writer never dies of SIGPIPE under pipefail.
+gq() { grep "$@" >/dev/null; }
+
 # check <name> <failure message> <command...>: ok when the command succeeds.
 check() {
   name=$1; msg=$2; shift 2
@@ -38,8 +41,9 @@ task_headers() {
   ' "$PLAN"
 }
 task_ids() { task_headers | cut -d'|' -f1; }
-kind_of() { task_headers | grep "^$1|" | grep -o '\*\*Kind:\*\* [^·]*' | sed -e 's/^\*\*Kind:\*\* //' -e 's/[[:space:]]*$//'; }
-field_of() { task_headers | grep "^$1|" | grep -o "\*\*$2:\*\* [^·]*" | sed -e "s/^\*\*$2:\*\* //" -e 's/[[:space:]]*$//'; }
+field_of() { task_headers | grep "^$1|" | grep -o "\*\*$2:\*\* [^·]*" | sed -e "s/^\*\*$2:\*\* //" -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
+# The Kind of a task, trimmed and lower-cased as make-package.sh reads it.
+kind_of() { field_of "$1" Kind | tr 'A-Z' 'a-z'; }
 task_text() { sed -n "/^### Task $1:/,/^##/p" "$PLAN" | sed '$d'; }
 # The plan's "## " headings, outside code fences.
 headings() { awk '/^```/ { f = !f } !f && /^## / { sub(/^## /, ""); print }' "$PLAN"; }
@@ -47,7 +51,7 @@ headings() { awk '/^```/ { f = !f } !f && /^## / { sub(/^## /, ""); print }' "$P
 all_kinds_valid() {
   local id k
   for id in $(task_ids); do
-    k=$(kind_of "$id" | tr 'A-Z' 'a-z')
+    k=$(kind_of "$id")
     case $k in ''|code|findings|document) ;; *) echo "$id has Kind '$k'"; return 1 ;; esac
   done
 }
@@ -58,7 +62,7 @@ worker_tasks_have_kind() {
   local id k
   for id in $(task_ids); do
     [ "$(field_of "$id" Model)" = orchestrator ] && continue
-    k=$(kind_of "$id" | tr 'A-Z' 'a-z')
+    k=$(kind_of "$id")
     case $k in code|findings|document) ;; *) echo "$id has no Kind"; return 1 ;; esac
   done
 }
@@ -72,8 +76,8 @@ findings_list_both_contracts() {
   for id in $(task_ids); do
     [ "$(kind_of "$id")" = findings ] || continue
     n=$((n + 1))
-    field_of "$id" Contracts | grep -qF 'Findings format' || { echo "$id lacks Findings format"; return 1; }
-    field_of "$id" Contracts | grep -qF 'Severity scale' || { echo "$id lacks Severity scale"; return 1; }
+    field_of "$id" Contracts | gq -F 'Findings format' || { echo "$id lacks Findings format"; return 1; }
+    field_of "$id" Contracts | gq -F 'Severity scale' || { echo "$id lacks Severity scale"; return 1; }
   done
   [ "$n" -ge 3 ]
 }
@@ -84,7 +88,7 @@ contracts_match_headings() {
   for id in $(task_ids); do
     field_of "$id" Contracts | tr ',' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | while read -r c; do
       case $c in ''|none) continue ;; esac
-      headings | grep -qxF "$c" || { echo "$id: no '## $c' heading"; exit 1; }
+      headings | gq -xF "$c" || { echo "$id: no '## $c' heading"; exit 1; }
     done || return 1
   done
 }
@@ -98,10 +102,10 @@ one_consolidation_task() {
   for id in $(task_ids); do
     [ "$(kind_of "$id")" = findings ] || continue
     # the cross-cutting review runs after the consolidation, so it is not one of its parts
-    field_of "$id" 'Depends on' | grep -qF "${docs[0]}" && continue
-    printf '%s' "$deps" | grep -qF "$id" || { echo "consolidation does not depend on $id"; return 1; }
+    field_of "$id" 'Depends on' | gq -F "${docs[0]}" && continue
+    printf '%s' "$deps" | gq -F "$id" || { echo "consolidation does not depend on $id"; return 1; }
   done
-  task_text "${docs[0]}" | grep -qF '**Part:** the whole document'
+  task_text "${docs[0]}" | gq -F '**Part:** the whole document'
 }
 check one_consolidation_task "exactly one document task, depending on every part, writing the whole document" one_consolidation_task
 
@@ -110,7 +114,7 @@ closing_order() {
   local cons review l_cons l_review l_res
   cons=T-003; review=T-004
   [ "$(kind_of $cons)" = document ] && [ "$(kind_of $review)" = findings ] || return 1
-  field_of $review 'Depends on' | grep -qF "$cons" || return 1
+  field_of $review 'Depends on' | gq -F "$cons" || return 1
   l_cons=$(grep -n "^### Task $cons:" "$PLAN" | cut -d: -f1)
   l_review=$(grep -n "^### Task $review:" "$PLAN" | cut -d: -f1)
   l_res=$(grep -n '^### Tasks T-005 … T-007: Reserved for fixes from T-001, T-002$' "$PLAN" | cut -d: -f1)
@@ -122,19 +126,19 @@ reserved_slots_have_no_header() {
   local after
   after=$(awk '/^### Tasks T-005/ { f = 1; next } f && NF { print; exit }' "$PLAN")
   case $after in '**'*) return 1 ;; esac
-  ! task_ids | grep -qE '^T-00[567]$'
+  ! task_ids | gq -E '^T-00[567]$'
 }
 check reserved_slots_are_not_tasks "reserved slots must have no header line and no task heading" reserved_slots_have_no_header
 
 deliverable_decision_to_confirm() {
   awk '/^## Decisions recorded for this plan/ { f = 1; next } /^## / { f = 0 } f' "$PLAN" \
-    | grep -i 'deliverable' | grep -qF 'to confirm'
+    | grep -i 'deliverable' | gq -F 'to confirm'
 }
 check deliverable_decision_to_confirm "the deliverable decision must say 'to confirm'" deliverable_decision_to_confirm
 
 permission_mode_to_confirm() {
   awk '/^## Decisions recorded for this plan/ { f = 1; next } /^## / { f = 0 } f' "$PLAN" \
-    | grep -i 'permission' | grep -qF 'to confirm'
+    | grep -i 'permission' | gq -F 'to confirm'
 }
 check permission_mode_to_confirm "the permission mode decision must say 'to confirm'" permission_mode_to_confirm
 
@@ -146,6 +150,48 @@ fixed_headings_present() {
   done
 }
 check fixed_headings_present "a fixed heading is missing or repeated" fixed_headings_present
+
+# The Self-review section of the plan states these claims; assert them.
+review_focus_names_tasks() {
+  local items id n=0
+  items=$(awk '/^## Review Focus/ { f = 1; next } /^## / { f = 0 } f && /^[0-9]+\./' "$PLAN")
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    n=$((n + 1))
+    case $line in *'['T-*']'*) ;; *) echo "no task named: $line"; return 1 ;; esac
+    for id in $(printf '%s' "$line" | sed -e 's/^[^[]*\[//' -e 's/\].*//' | tr -d ','); do
+      task_ids | gq -xF "$id" || { echo "Review Focus names unknown task $id"; return 1; }
+    done
+  done <<EOF2
+$items
+EOF2
+  [ "$n" -ge 1 ]
+}
+check review_focus_names_tasks "a Review Focus item names no task, or a task that does not exist" review_focus_names_tasks
+
+decision_statuses() {
+  local d status
+  for d in D1 D2 D3 D4; do
+    awk -F'|' -v d="$d" '$2 ~ "^ *" d " *$" { print $5 }' "$PLAN" | gq -F 'to confirm' || { echo "$d is not 'to confirm'"; return 1; }
+  done
+  for d in D5 D6; do
+    status=$(awk -F'|' -v d="$d" '$2 ~ "^ *" d " *$" { print $5 }' "$PLAN")
+    printf '%s' "$status" | gq -F 'adopted by' || { echo "$d is not routine ('adopted by ...')"; return 1; }
+  done
+}
+check decision_statuses "D1 to D4 must be 'to confirm' and D5, D6 'adopted by ...'" decision_statuses
+
+# T-000 records a baseline for every file a findings task's Verify compares against.
+t000_records_baselines() {
+  local id b
+  for id in $(task_ids); do
+    [ "$(kind_of "$id")" = findings ] || continue
+    for b in $(task_text "$id" | grep -o 'baseline-[A-Za-z0-9.-]*' | sort -u); do
+      task_text T-000 | gq -F "$b" || { echo "T-000 does not record $b ($id)"; return 1; }
+    done
+  done
+}
+check t000_records_baselines "a findings task compares against a baseline T-000 does not record" t000_records_baselines
 
 # Findings tasks in one wave examine disjoint scopes: the backticked paths of
 # the two Scope lines share no path and none is inside another.
@@ -164,26 +210,26 @@ check disjoint_scopes "T-001 and T-002 scopes overlap or are missing" disjoint_s
 findings_verify_checks_ids_cells_evidence() {
   local id
   for id in T-001 T-002 T-004; do
-    task_text "$id" | grep -qF "grep -c '^| $id-F" || return 1
-    task_text "$id" | grep -qF 'cells ok' || return 1
-    task_text "$id" | grep -qF "evidence/$id/" || return 1
+    task_text "$id" | gq -F "grep -c '^| $id-F" || return 1
+    task_text "$id" | gq -F 'cells ok' || return 1
+    task_text "$id" | gq -F "evidence/$id/" || return 1
   done
 }
 check findings_verify_steps "a findings task's Verify does not check the ID prefix, the cells and the evidence files" findings_verify_checks_ids_cells_evidence
 
 consolidation_html_check() {
-  task_text T-003 | grep -qF '<script|<link[^>]*href="https?:|src="https?:'
+  task_text T-003 | gq -F '<script|<link[^>]*href="https?:|src="https?:'
 }
 check consolidation_html_check "the consolidation's Verify must run the html grep check" consolidation_html_check
 
 no_clickup_in_worker_text() {
-  ! { awk '/^## Worker environment/ { f = 1; next } /^## / { f = 0 } f' "$PLAN"; sed -n '/^## Tasks/,/^## Self-review/p' "$PLAN"; } | grep -qi clickup
+  ! { awk '/^## Worker environment/ { f = 1; next } /^## / { f = 0 } f' "$PLAN"; sed -n '/^## Tasks/,/^## Self-review/p' "$PLAN"; } | gq -i clickup
 }
 check no_clickup_in_worker_text "no task or the Worker environment may mention ClickUp" no_clickup_in_worker_text
 
 no_unfilled_placeholders() {
   # <report-dir> and <run-id> are known only at execution, and F<NN> is the finding number; nothing else may stay as <...> in tasks.
-  sed -n '/^## Tasks/,/^## Self-review/p' "$PLAN" | grep -oE '<[A-Za-z][A-Za-z -]*>' | sort -u | grep -vxE '<report-dir>|<run-id>|<NN>' | grep -q . && return 1
+  sed -n '/^## Tasks/,/^## Self-review/p' "$PLAN" | grep -oE '<[A-Za-z][A-Za-z -]*>' | sort -u | grep -vxE '<report-dir>|<run-id>|<NN>' | gq . && return 1
   return 0
 }
 check no_unfilled_placeholders "a task keeps a <...> placeholder that is not known only at execution" no_unfilled_placeholders
@@ -199,6 +245,8 @@ build() { # build <task> [args...] -> RC, ERR
   ERR=$(cat "$WORK/stderr")
 }
 has() { grep -qF -- "$2" "$1"; }
+# The package's header block: the lines before the first "---" separator.
+pkg_header() { awk '/^---$/ { exit } { print }' "$1"; }
 
 for t in T-001 T-002; do
   build $t; P="$REPORTS/$t.package.md"
@@ -206,15 +254,15 @@ for t in T-001 T-002; do
     && has "$P" "evidence/$t/" && has "$P" '## Findings format' && has "$P" '## Severity scale' \
     && has "$P" '## Decisions recorded for this plan' && has "$P" '## Global Constraints' \
     && has "$P" '## Review Focus' && has "$P" '## Worker environment' && has "$P" "### Task $t:" \
-    && ! grep -qiE 'branch|merge-base|worktree' "$P"; then pass "package_$t"
+    && ! pkg_header "$P" | gq -iE 'branch|merge-base|worktree'; then pass "package_$t"
   else bad "package_$t" "rc=$RC $ERR"; fi
 done
 
 build T-003; P="$REPORTS/T-003.package.md"
 if [ "$RC" = 0 ] && has "$P" 'document_worker' && has "$P" 'parts/T-003.md' \
   && has "$P" '## Document outline' && has "$P" '## Style guide' \
-  && grep '^Allowed writes:' "$P" | grep -qF 'parts/T-003.html' \
-  && ! grep -qiE 'branch|merge-base|worktree' "$P"; then pass package_T-003
+  && grep '^Allowed writes:' "$P" | gq -F 'parts/T-003.html' \
+  && ! pkg_header "$P" | gq -iE 'branch|merge-base|worktree'; then pass package_T-003
 else bad package_T-003 "rc=$RC $ERR"; fi
 
 build T-004; P="$REPORTS/T-004.package.md"
@@ -222,7 +270,7 @@ if [ "$RC" = 0 ] && has "$P" 'findings_worker' && has "$P" '### Task T-004:' && 
 else bad package_T-004 "rc=$RC $ERR"; fi
 
 build T-005
-if [ "$RC" = 1 ] && printf '%s' "$ERR" | grep -qF "task heading not found: '### Task T-005:'"; then pass reserved_slot_has_no_package
+if [ "$RC" = 1 ] && printf '%s' "$ERR" | gq -F "task heading not found: '### Task T-005:'"; then pass reserved_slot_has_no_package
 else bad reserved_slot_has_no_package "rc=$RC $ERR"; fi
 
 review() { # review <task> <kind> [args...] -> RC, ERR
@@ -235,13 +283,15 @@ review() { # review <task> <kind> [args...] -> RC, ERR
 }
 
 review T-001 findings; P="$REPORTS/T-001.review-package.md"
-if [ "$RC" = 0 ] && has "$P" 'confirmed' && has "$P" 'not reproduced' && has "$P" 'max(3' \
+if [ "$RC" = 0 ] && has "$P" 'confirmed' && has "$P" 'not reproduced' \
+  && has "$P" 'plus max(3, ceil(20% of the Minor findings)) Minor findings, or all the Minor findings when there are fewer than 3' \
   && has "$P" 'evidence/T-001-review/' && ! has "$P" 'git -C'; then pass review_package_T-001
 else bad review_package_T-001 "rc=$RC $ERR"; fi
 
 mkdir -p "$WORK/integrated"
 review T-003 document --integrated "$WORK/integrated"; P="$REPORTS/T-003.review-package.md"
-if [ "$RC" = 0 ] && has "$P" 'parts/T-003.md' && has "$P" "$WORK/integrated" && has "$P" 'without a source' \
+if [ "$RC" = 0 ] && has "$P" 'parts/T-003.md' && has "$P" "$WORK/integrated" && has "$P" 'List each claim without a source' \
+  && has "$P" 'Verdict is CHANGES_REQUIRED when a Critical/Important claim has no source, the part would contradict an integrated part, or a section of the outline is missing' \
   && ! has "$P" 'git -C'; then pass review_package_T-003
 else bad review_package_T-003 "rc=$RC $ERR"; fi
 

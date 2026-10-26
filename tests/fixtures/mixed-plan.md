@@ -76,7 +76,7 @@ The closing order is consolidation, then review, then fixes. There is no UI, so 
 | T-004 | findings | opus | cross-cutting review of the deliverable |
 | Per-task reviewers | – | opus for T-001 and T-003, sonnet for T-002 | reviewer at least as capable as the author |
 
-**Non-code worker launch** (findings and document tasks: no worktree, no database, no `--env`; flags verified on Claude Code 2.1.310 / herdr 0.9.5; example T-003):
+**Non-code worker launch** (findings and document tasks: no worktree, no database, no `--env`; example T-003):
 
 ```bash
 run_id=shop-audit-<yyyymmdd>   # resolved at execution

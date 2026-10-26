@@ -54,7 +54,9 @@ prepare T-002 && {
   review --task T-002 --kind findings
   P="$REPORTS/T-002.review-package.md"
   if [ "$RC" = 0 ] && has "$P" 'confirmed' && has "$P" 'not reproduced' && has "$P" 'inaccurate' \
-    && has "$P" 'max(3' && has "$P" 'evidence/T-002-review/' && has "$P" 'CHANGES_REQUIRED' \
+    && has "$P" 'plus max(3, ceil(20% of the Minor findings)) Minor findings, or all the Minor findings when there are fewer than 3' \
+    && has "$P" 'evidence/T-002-review/' \
+    && has "$P" "Verdict is CHANGES_REQUIRED when a finding lacks its evidence fields, an area of the task's scope was not covered, or a Critical/Important finding is inaccurate; otherwise APPROVED" \
     && ! has "$P" 'git -C'; then pass review_findings
   else bad review_findings "rc=$RC $ERR"; fi
 }
@@ -64,8 +66,18 @@ prepare T-003 && {
   review --task T-003 --kind document --integrated "$WORK/integrated"
   P="$REPORTS/T-003.review-package.md"
   if [ "$RC" = 0 ] && has "$P" 'parts/T-003.md' && has "$P" "$WORK/integrated" \
-    && has "$P" 'without a source' && has "$P" 'contradict' && ! has "$P" 'git -C'; then pass review_document
+    && has "$P" 'List each claim without a source' && has "$P" 'List every statement that would contradict an integrated part' \
+    && has "$P" 'Verdict is CHANGES_REQUIRED when a Critical/Important claim has no source, the part would contradict an integrated part, or a section of the outline is missing; otherwise APPROVED' \
+    && has "$P" 'the author wrote only its part and its report under the report dir' \
+    && has "$P" "The author report lists the sources consulted" \
+    && ! has "$P" 'git -C'; then pass review_document
   else bad review_document "rc=$RC $ERR"; fi
+
+  review --task T-003 --kind document
+  P="$REPORTS/T-003.review-package.md"
+  if [ "$RC" = 0 ] && has "$P" 'Parts already integrated: none given' \
+    && has "$P" 'skip the comparison with other parts and say so in the review' && ! has "$P" "$WORK/integrated"; then pass review_document_without_integrated
+  else bad review_document_without_integrated "rc=$RC $ERR"; fi
 }
 
 prepare T-002 && {
