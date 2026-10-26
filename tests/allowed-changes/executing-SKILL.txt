@@ -1,0 +1,11 @@
+description: Use when executing an approved implementation plan by orchestrating independent Claude Code workers in Herdr panes (one git worktree per task), or when resuming, checking status of, closing such a run, or taking it over as a relief orchestrator
+One orchestrator session runs a plan written with **writing-herdr-plans**. It runs the plan wave by wave: each task goes to a fresh Claude Code worker in its own Herdr pane and git worktree, is checked by an independent reviewer, and is integrated by the orchestrator with a full gate after every merge.
+  - owns T-000, worktrees, databases, launches, merges into the coordination branch, gates and all Git;
+4. **Stack and architecture confirmation** (the only up-front stop of the run; read-only, install nothing). Build the inventory, show it to the user, and wait for their answer before step 5.
+6. Check that the plan has the writing-herdr-plans headings: build the first worker task's package (T-001) with `make-package.sh`. The script fails and names any missing section.
+10. Do T-000 yourself on the coordination branch: dependencies, scripts, test isolation, gate green. Record the base commit.
+1. **Prepare each task.** You can do this while the cap is full, so the task launches as soon as a pane frees up:
+5. Verdict `APPROVED` → merge. `CHANGES_REQUIRED` → fix round:
+1. Run the **cross-cutting review** (read-only, opus) on the integrated branch.
+| Worker package | `bash <skill-dir>/scripts/make-package.sh --plan P --task T-0NN --model M --why W --run-id R --reports D --worktree WT --branch B --base SHA --coord ROOT --coord-branch CB [--vault-excerpts F] [--notes F] [--env "…"] [--role review] [--attempt N]` |
+| Review package | `bash <skill-dir>/scripts/make-review-package.sh --task T-0NN --model M --run-id R --reports D --worktree WT --branch B --base $(git -C WT merge-base CB HEAD) [--notes F] [--attempt N]` |

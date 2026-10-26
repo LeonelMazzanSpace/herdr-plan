@@ -29,5 +29,6 @@ check-moved-text() {
 }
 
 check-moved-text writing --old 759fd7a:writing-herdr-plans/SKILL.md --allow tests/allowed-changes/writing-SKILL.txt writing-herdr-plans/SKILL.md writing-herdr-plans/kinds/code.md
+check-moved-text executing --old 759fd7a:executing-herdr-plans/SKILL.md --allow tests/allowed-changes/executing-SKILL.txt executing-herdr-plans/SKILL.md executing-herdr-plans/kinds/code.md
 
 exit "$status"

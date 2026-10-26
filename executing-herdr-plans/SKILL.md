@@ -1,13 +1,13 @@
 ---
 name: executing-herdr-plans
-description: Use when executing an approved implementation plan by orchestrating independent Claude Code workers in Herdr panes (one git worktree per task), or when resuming, checking status of, closing such a run, or taking it over as a relief orchestrator
+description: Use when executing an approved plan (code, audit, research, documents) by orchestrating independent Claude Code workers in Herdr panes, or when resuming, checking status of, closing such a run, or taking it over as a relief orchestrator
 ---
 
 # Executing Herdr Plans
 
 ## Overview
 
-One orchestrator session runs a plan written with **writing-herdr-plans**. It runs the plan wave by wave: each task goes to a fresh Claude Code worker in its own Herdr pane and git worktree, is checked by an independent reviewer, and is integrated by the orchestrator with a full gate after every merge.
+One orchestrator session runs a plan written with **writing-herdr-plans**. It runs the plan wave by wave: each task goes to a fresh Claude Code worker in its own Herdr pane (a git worktree for code tasks), is checked by an independent reviewer and is integrated by the orchestrator behind a gate (a full gate after every merge, for code tasks).
 
 **Core principle:** a worker's report is a claim, not evidence. A task is `completed` only after it has been implemented, reviewed, integrated and verified, and the orchestrator has checked each step itself.
 
@@ -27,7 +27,7 @@ The `-n` label is only Claude's display name.
 ## Roles
 
 - **Orchestrator (you):**
-  - owns T-000, worktrees, databases, launches, merges into the coordination branch, gates and all Git;
+  - owns T-000, worktrees, databases, launches, merges into the coordination branch, gates, the deliverable (findings and document tasks) and all Git;
   - is the only writer of `SCRATCHPAD.md` and the vault;
   - keeps its own context under **70%** and hands the run to a relief orchestrator when it gets there (Context check, Handing Off). The run never relies on context compaction;
   - records every user instruction that changes the run as a D-number **when it is given**: after a hand-off, only the scratchpad speaks.
@@ -38,6 +38,16 @@ The `-n` label is only Claude's display name.
   - product decisions that change scope;
   - destructive or security-sensitive actions;
   - push, PR or merges into shared branches.
+
+## What changes per kind
+
+Each task has a `Kind` (`code` when the header has none). The core below works for every kind. A kind's own steps are in its file, which you read only when the plan has that kind. Its headings tell where each step goes: Stack confirmation or Scope and access confirmation (Preflight 4), Preparing (Wave Loop 1), Accepting (Accepting 2–3), Integrating (Accepting 6), Failures, Closing and Red flags.
+
+| Kind | What the worker delivers | Read when the plan has it |
+|---|---|---|
+| `code` | Code on its own branch and worktree, with a green Verify | `kinds/code.md` |
+| `findings` | A findings report with evidence, from read-only access | `kinds/findings.md` |
+| `document` | A document part with sources, written under the report dir | `kinds/document.md` |
 
 ## Preflight (once per run)
 
@@ -50,31 +60,16 @@ The `-n` label is only Claude's display name.
 3. Read the scratchpad (`scratchpad-template.md` if missing), the plan and its summary. Confirm the vault MCP is connected before reading the vault notes the tasks name.
    - If the MCP fails: tell the user, record the blocker, and continue only the tasks that do not depend on vault content. Queue the vault updates in the scratchpad.
    - Never fall back to reading vault files from disk.
-4. **Stack and architecture confirmation** (the only up-front stop of the run; read-only, install nothing). Build the inventory, show it to the user, and wait for their answer before step 5.
-   - **Read:**
-     - the repo: `dependencies` and `devDependencies` of the root and each workspace `package.json`, the lockfile, `tsconfig*`, `docker-compose*`, ORM and migration config or folders, CI files, the project `CLAUDE.md`, and the top-level folder layout;
-     - the plan: the Tech Stack header, `## Decisions recorded for this plan`, T-000, the contract sections, and the libraries and patterns named in task Files and Interfaces;
-     - company defaults the project `CLAUDE.md` or the global one lists, and the vault notes on architecture if the MCP is connected.
-   - **Inventory table**, in the user's language, one row per category: `Category · Value · Source · Status`.
-     - Categories: package manager, runtime and language, backend framework, **data access (ORM or query builder, e.g. TypeORM, Sequelize, Prisma, Drizzle)**, database engine, migrations tool, auth, validation, API style, frontend framework and build tool, UI kit, state and data fetching, forms, unit and E2E test runners, lint and format, CI and deploy, architecture (module layout, layering, monorepo shape).
-     - Source: `repo`, `plan`, `both`, `company default`.
-     - Status: `confirmed` (repo and plan agree, or only one names it and the other does not contradict it), `conflict` (repo and plan, or plan and company default, disagree, e.g. the repo has Prisma and the plan says TypeORM), `undecided` (a task needs it and nobody named it), `redundant` (the repo has two libraries for the same job).
-   - **Also list what may have been missed:**
-     - libraries a task imports that T-000 does not install;
-     - a category with tasks but no decision in the plan;
-     - two tasks assuming different libraries for the same job;
-     - repo conventions (folder layout, naming, test location) the plan's tasks contradict.
-   - **Ask once.** Show the table, then only the rows that are `conflict`, `undecided` or `redundant`, each with your recommendation and a one-line tradeoff. A `confirmed` row is shown, not asked about, but the user may change it. Batch into this same message the other questions this preflight needs: permission mode (step 7), keeping the machine awake (step 8) and a ClickUp board decision still `to confirm` (step 9).
-   - **After the answer:**
-     - record each stack choice as a D-number with status `approved` (user's words as the source) and write a "Stack confirmed" line in the scratchpad with the date;
-     - if an answer changes the plan (another ORM, an extra library, a different layout), revise the plan on the coordination branch first: Tech Stack header, T-000 dependencies, and the tasks, contracts and Worker environment it touches. Run the plan's self-review again, record the revision as a D-number, and send `plan revised` to the `clickup` worker once it is running;
-     - from here on, run the plan without asking about the stack again. A worker that needs a library outside the confirmed list stops with BLOCKED, as the plan already requires.
-   - **No shortcuts.** User urgency does not skip this step; it makes the question shorter. If the user is away, wait: never mark a stack choice `approved` yourself, and never pick between conflicting rows on their behalf. On resume, skip it only when the scratchpad shows "Stack confirmed" and the plan's Tech Stack and T-000 are unchanged since that date.
+4. **Up-front confirmation** (the only up-front stop of the run; read-only, install nothing). Build the confirmation for the kinds in the plan, show it to the user, and wait for their answer before step 5.
+   - Code tasks: `kinds/code.md § Stack confirmation`. Findings and document tasks: `kinds/<kind>.md § Scope and access confirmation`. A mixed plan shows both tables in one message.
+   - Batch into the same message the other questions this preflight needs: permission mode (step 7), keeping the machine awake (step 8) and a ClickUp board decision still `to confirm` (step 9).
+   - Urgency never skips it, and you never approve a row for the user. On resume, the resume rule in the kind file's confirmation section applies.
 5. Create the report dir: `mkdir -p -m 700 ~/.cache/herdr-reports/<run-id>`. Packages, reports, reviews, fix files and vault excerpts (`<task>.vault.md`) all live there.
-6. Check that the plan has the writing-herdr-plans headings: build the first worker task's package (T-001) with `make-package.sh`. The script fails and names any missing section.
+6. Check that the plan has the writing-herdr-plans headings: build the first task's package (T-001) with `make-package.sh`, whatever its kind. The script fails and names any missing section.
 7. **Permission mode.** Workers need a write-capable mode.
    - Launching with `--permission-mode auto` may be denied by the permission classifier. If so, ask the user once to authorize it and record the answer as a D-number.
    - If the user refuses, ask which write-capable mode they approve (e.g. `acceptEdits`, approving commands in each pane). Never switch to bypass flags.
+   - Non-code workers (findings, document) do not use a write-capable mode: they launch with `--permission-mode dontAsk --allowedTools "<read tools, read-only commands the plan names, Write/Edit only under <report-dir>>"`. Verify both flags against `claude --help` before the first launch, and have the user approve the allowlist in step 4.
 8. **Keep the machine awake.** Sleep pauses every worker and cuts off reports. Ask the user first; with their OK, run `caffeinate -i` in a pane you create.
 9. **ClickUp sync** (skip if the plan says `**ClickUp:** none`). Verify first, then start the worker:
    - the plan's board decision is `approved`. If it is still `to confirm`, ask the user now: creating tasks is outward-facing;
@@ -84,9 +79,9 @@ The `-n` label is only Claude's display name.
    - send `plan created`. The worker creates one task per plan task and reports the map. Read the board back yourself for a sample of tasks (`clickup_get_task`) before writing `ClickUp sync: started` in the scratchpad.
 
    It is not a task worker, but it does count toward the cap of live panes.
-10. Do T-000 yourself on the coordination branch: dependencies, scripts, test isolation, gate green. Record the base commit.
+10. Do T-000 yourself as the kind files describe; record the base commit and, for findings and document tasks, the sources baseline. For code, T-000 is on the coordination branch: dependencies, scripts, test isolation, gate green.
 
-Model order is `haiku` < `sonnet` < `opus`. Herdr `--timeout` values are milliseconds. The task-specific values below (`E2E_DATABASE_NAME`, DB names, ports) come from the plan's "Worker environment" and orchestration sections.
+Model order is `haiku` < `sonnet` < `opus`. Herdr `--timeout` values are milliseconds.
 
 ## Wave Loop
 
@@ -95,12 +90,7 @@ Dispatch while there are fewer than **6 live worker panes**, or the plan's lower
 - When a pane frees up, use it in this order: pending reviews and re-reviews first (they unblock merges), then fix rounds, then new implementers in plan order.
 - The cap changes only by a new explicit user instruction, recorded as a D-number.
 
-1. **Prepare each task.** You can do this while the cap is full, so the task launches as soon as a pane frees up:
-   - create the worktree and branch from the coordination branch;
-   - generate the worktree `.env` as a copy of the coordination `.env` with its own DB and port (never edit the coordination `.env` itself);
-   - create its dev and test databases;
-   - run `pnpm install --frozen-lockfile`;
-   - write `<report-dir>/<task>.vault.md`: reread the notes through the MCP and quote the lines the task needs.
+1. **Prepare each task as its kind file says** (`kinds/<kind>.md`, Preparing). You can do this while the cap is full, so the task launches as soon as a pane frees up.
 2. **Build the package:** `bash <skill-dir>/scripts/make-package.sh --plan … --task T-0NN …`. Recurring finding classes from earlier reviews go in `--notes` (see Learning Across Tasks).
 3. **Create or reuse a pane.**
    - **Layout:** check the tab width with `herdr pane layout --pane "$HERDR_PANE_ID"`.
@@ -111,6 +101,7 @@ Dispatch while there are fewer than **6 live worker panes**, or the plan's lower
    - **Later workers:** first reuse a pane freed by `/exit` (`cd <wt>` there); otherwise split `--direction down` in whichever column has fewer panes.
    - Pass the worker's variables at split time: `--env E2E_DATABASE_NAME=<db>_test`. Read the id from `.result.pane.pane_id`.
    - In a reused pane, whether for an implementer or a reviewer, run `herdr pane run <pane> "cd <wt> && export E2E_DATABASE_NAME=<db>_test"`.
+   - Non-code tasks (findings, document): `<wt>` is the coordination root, pass no `--env`, and launch with the non-code mode of Preflight step 7.
 4. **Launch:**
    ```bash
    herdr agent start t0NN --kind claude --pane <pane> --timeout 120000 -- --model <plan model> --permission-mode <approved mode> --add-dir <report-dir> -n "T-0NN <label>"
@@ -151,6 +142,7 @@ herdr agent prompt clickup "T-004 → in progress | pane <id>, model sonnet" --w
 | Blocked on something you cannot fix at once | `blocked`, with the reason |
 | Plan edited (new task IDs, a fix or split task, changed criteria or dependencies) | `plan revised`, with the changed fields |
 
+- For non-code tasks, `integrated` means the part was copied into `deliverables/<run-id>/parts/`, and `verified` means the plan's gate is green over the parts.
 - Each line is `T-0NN → <state> | <evidence: commit, report path or gate result>`. Never send secrets or PII.
 - Send an event only after you have verified the state. A worker's claim is not an event.
 - Never wait on ClickUp: no dispatch, merge or gate depends on its answer.
@@ -161,8 +153,8 @@ herdr agent prompt clickup "T-004 → in progress | pane <id>, model sonnet" --w
 Accept a task only when every check below passes, in order:
 
 1. The worker is `idle` or `done` (`blocked` and `unknown` are not settled), and the **report file** says PASS. Chat text does not count; read the file before writing `implemented`.
-2. `git -C <wt> diff --stat $(git -C <wt> merge-base <coordination-branch> HEAD)...HEAD` touches only the task's allowed files. Use the merge-base, because the coordination branch may have been merged into the task branch.
-3. You re-ran the task's Verify commands in the worktree, and they are green.
+2. **Scope and verification:** the kind file's Accepting section (`kinds/<kind>.md`): what the task may touch and how you check it.
+3. The same section says how you re-run the task's Verify commands, and they are green.
 4. **Independent review** (`in review`). Pick the pane:
    - **below the cap:** keep the implementer alive and start the reviewer in a new pane. A fix round can then go to the same session, which keeps its context;
    - **at the cap:** exit the implementer (`/exit`) and confirm with `herdr pane read <pane> --source visible` that the shell prompt is back. If an exit dialog is still showing, close the pane and split a new one.
@@ -171,20 +163,18 @@ Accept a task only when every check below passes, in order:
    - **Model:** ≥ the implementer's, and `opus` for security, payments or transactions. A review by a weaker model does not count: rerun it.
    - **Prompt:** "Read <the path printed by `bash <skill-dir>/scripts/make-review-package.sh … --attempt N`> and execute it exactly."
    - Each attempt has its own files (`<task>.review.md`, `<task>.review-a2.md`, …), so earlier reviews are kept.
-5. Verdict `APPROVED` → merge. `CHANGES_REQUIRED` → fix round:
+5. Verdict `APPROVED` → integrate (step 6). `CHANGES_REQUIRED` → fix round (for findings and document tasks, `CHANGES_REQUIRED` follows the kind file's rules):
    - write `<task>.fix-a<N>.md` from `fix-round-template.md` and give it to the implementer session if it is alive, otherwise to a fresh worker `t0NN-f<N>` in the same worktree;
    - send a scoped re-review with the next review attempt number;
    - escalate if a second fix round still fails on the same finding: a fresh worker one tier up, passing on every previous report and review. If the implementer was already `opus`, debug the finding yourself with systematic-debugging, then either write a tighter fix brief or split the task.
    - Fix rounds, retries and escalations always go through a fix file, which keeps the original package and appends to the same report. Use `make-package.sh --attempt N` only for a full restart from scratch; it writes `-aN` files and overwrites nothing.
-6. **Merge:** `git merge --no-ff <task-branch>` into the coordination branch.
-   - Conflicts are expected only in shared registration files that the plan lists in more than one task (module imports, routes). Resolve them by keeping both sides.
-   - Run the **full gate**. Only a green gate makes the task `verified`. Then close that task's panes.
+6. **Integration:** the kind file's Integrating section (`kinds/<kind>.md`). A findings task is integrated by copying its report, with the reviewer's verdicts applied, to `deliverables/<run-id>/parts/<TASK>.md`; the details are in `kinds/findings.md`.
 
 ## When a Worker Stops or Breaks
 
 | Situation | Action |
 |---|---|
-| BLOCKED by something you own (T-000 dependencies, a contract, a stale test) | Fix it on the coordination branch and run the gate. Merge the coordination branch into the task branch, re-running install if the lockfile changed. Re-prompt **the same session** with a short message: fix commit, what changed, continue. A narrow out-of-scope edit may be authorized in writing in that prompt; record it as a D-number. |
+| BLOCKED by something you own, or the integration gate red after a merge (code tasks) | `kinds/code.md § Failures (code)`. Failures of findings and document tasks are in their kind files, under Failures. |
 | A worker asks a question in chat instead of reporting BLOCKED | Same rules as BLOCKED: answer routine in-scope questions with a new prompt. Dependencies and contracts are yours, so handle them as in the row above. Scope-changing questions go to the user. |
 | Report says FAIL | Read it and diagnose. Retry once with a prompt that names the failure mode; never resend the same prompt. If it fails again, escalate or split as in Accepting step 5. |
 | `--wait` timed out while still `working` | Inspect `herdr agent read` and `git log`. If it is progressing, wait again with `herdr agent wait t0NN --timeout 3600000` in the background. If nothing changed in 20 minutes, send `esc` with `send-keys` and ask for a status report. |
@@ -194,9 +184,6 @@ Accept a task only when every check below passes, in order:
 | Vault MCP fails mid-run | Tell the user, record it, and try one reconnect. Tasks whose packages need new vault excerpts wait. Excerpts already quoted this run may be reused only if the notes were not edited since. Queue vault writes in the scratchpad. Never read the vault from disk. |
 | ClickUp MCP fails mid-run, or the `clickup` worker errors or stalls | Tell the user, record it, and try one reconnect or restart of the worker with the same prompt and map file. Meanwhile queue the events in the scratchpad (task, state, evidence) and keep going. After recovery, send the queue as one batch. Never answer its permission prompts, and never write to ClickUp yourself or from a task worker. |
 | ClickUp board differs from the scratchpad (a task missing, duplicated or in another status) | The scratchpad wins. Send a `plan revised` or state event that corrects it, and read the board back. |
-| Integration gate red after a merge | Stop further merges and find the cause with systematic-debugging. Never edit tests just to make them green. |
-| ↳ cause is shared and yours (often a test helper that does not know a new table) | Fix it in an orchestrator commit on the coordination branch, then run the gate again. |
-| ↳ cause is the merged task's own code | Send a fix round on its task branch and merge again. If other merges are waiting, `git revert -m 1 <merge>` first; never `reset --hard`. |
 | A worker changed files outside its scope | Do not accept the task, and stop its dependents. Send a fix round asking the worker to revert that change. If the change is actually required (a plan defect), authorize it as a D-number and have the reviewer judge it. |
 
 ## When the User Overrides the Process
@@ -217,13 +204,16 @@ DAG deviations are allowed when they are provably safe; for example, a read-only
 
 ## Closing the Run
 
-1. Run the **cross-cutting review** (read-only, opus) on the integrated branch.
+For plans with findings or document tasks the order is: consolidation task, deliverable (step 2b), cross-cutting review (step 1), reserved fix tasks, final gate.
+
+1. Run the **cross-cutting review** (read-only, opus) on the integrated branch or the deliverable.
    - Package it with `make-package.sh --role review`. It gets no per-task review and no merge; its findings report is the result.
+   - `--role review` is for code. In a plan without code, the cross-cutting review is a `findings` task over the deliverable, packaged like any findings task. In a mixed plan it covers the integrated branch (`--role review`) and the deliverable.
    - Turn its Critical and Important findings into fix tasks (the next IDs) and record the deferred Minor ones as debt.
    - **New task IDs** (fix tasks, split tasks, hits from Learning Across Tasks): before packaging, append a full `### Task T-0NN: <title>` section with its header line to the plan under `## Tasks`, replacing its reserved slot. Record it as a D-number. Packages always come from the plan, never hand-written.
 2. Run the final gate, including the browser smoke test, and record the commit.
-   - For UI plans, also run the plan's **Final verification**: the E2E, usability and motion pass on desktop and mobile. Read its findings report and open the screenshots yourself; a worker's "PASS" is a claim.
-   - Check the usability criteria and the motion audit (durations, easings, reduced motion, hover gating) against the plan's `Animation guidelines`. Critical and Important findings become fix tasks; Minor ones are debt. Design improvement proposals go to the user; do not apply them.
+   - UI plans: `kinds/code.md § Closing (code)`.
+2b. **Deliverable** (plans with findings or document tasks). Once the consolidation task is accepted and integrated like any document task, place its part `deliverables/<run-id>/parts/<consolidation TASK>.md` as the deliverable `<name>.md` under `deliverables/<run-id>/`, and its `.html` too when the format is html (the consolidation worker writes it). Commit it on the coordination branch as the deliverable decision says (not at all if the decision is outside the repo). For html, run `grep -Eic '<script|<link[^>]*href="https?:|src="https?:' <file>`: it must print `0`. Give the user the absolute path of the deliverable.
 3. If the user asked for a local run:
    - pass secrets as process environment from a 0600 file in the session scratchpad;
    - never edit `.env` without permission;
@@ -275,8 +265,8 @@ For "status", "qué falta" or "continuá":
 
 | Need | Command |
 |---|---|
-| Worker package | `bash <skill-dir>/scripts/make-package.sh --plan P --task T-0NN --model M --why W --run-id R --reports D --worktree WT --branch B --base SHA --coord ROOT --coord-branch CB [--vault-excerpts F] [--notes F] [--env "…"] [--role review] [--attempt N]` |
-| Review package | `bash <skill-dir>/scripts/make-review-package.sh --task T-0NN --model M --run-id R --reports D --worktree WT --branch B --base $(git -C WT merge-base CB HEAD) [--notes F] [--attempt N]` |
+| Worker package | `bash <skill-dir>/scripts/make-package.sh --plan P --task T-0NN --model M --why W --run-id R --reports D --worktree WT --branch B --base SHA --coord ROOT --coord-branch CB [--vault-excerpts F] [--notes F] [--env "…"] [--role review] [--attempt N] [--kind K]` |
+| Review package | `bash <skill-dir>/scripts/make-review-package.sh --task T-0NN --model M --run-id R --reports D --worktree WT --branch B --base $(git -C WT merge-base CB HEAD) [--notes F] [--attempt N] [--kind K] [--integrated DIR]` |
 | Fix round | `fix-round-template.md` → `<report-dir>/<task>.fix-a<N>.md` |
 | Own context | `herdr pane read "$HERDR_PANE_ID" --source visible \| grep -o 'ctx:[0-9]*%' \| tail -1` |
 | Hand-off | `handoff-template.md` → scratchpad entry + `<report-dir>/handoff-orch-<N>.md` · `herdr agent start orch-<N> …` · confirm with `Resumed by orch-<N>` |
@@ -295,8 +285,6 @@ These thoughts mean stop:
 | "The gate failure isn't from this task, merge the next one" | A red gate stops the merges until it is understood and fixed |
 | "I'll answer the worker's permission prompt to save time" | Never answer another agent's permission request |
 | "Quick fix it in the worker's worktree myself" | Fix rounds go through a worker; you fix only what you own, on the coordination branch |
-| "The plan says TypeORM and the repo has Prisma, I'll follow the plan" | Conflicts go to the user in the stack confirmation, before anything is created |
-| "The user is in a hurry, skip the stack table" | Urgency shortens the question; it does not skip it |
 | "Cleanup worktrees and branches now" | Only after the user confirms |
 | "I'll update ClickUp myself, it's one call" | Only the `clickup` worker writes to the board; you send events |
 | "ClickUp says Done, so it's done" | The scratchpad is the source of truth; ClickUp mirrors verified states |
@@ -305,3 +293,5 @@ These thoughts mean stop:
 | "The relief can ask me for the details" | It cannot. What is not in the scratchpad, the plan or the report dir does not exist |
 | "Start the relief with `--resume` so it knows everything" | That loads the context you are shedding. Fresh session, from the scratchpad |
 | "I'll `/exit` myself after starting the relief" | You cannot run slash commands on yourself; the relief closes your pane |
+
+Each kind file has its own Red flags section (`kinds/code.md § Red flags (code)`).
