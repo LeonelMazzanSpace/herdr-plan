@@ -49,7 +49,7 @@ Core Accepting step 6. After `APPROVED`: copy `<report-dir>/parts/<TASK>.md` to 
 
 ## Consolidation and rendering
 
-The consolidation task (last wave, kind `document`) is accepted and integrated like any part, with these additions:
+The consolidation task (kind `document`, in the last wave of findings and document work, before the cross-cutting review) is accepted and integrated like any part, with these additions:
 
    - It reads only `deliverables/<run-id>/parts/`. Start it only when every part and every findings part is `integrated`.
    - Accepting: no part's claim was changed (`grep -vxFf <report-dir>/parts/<consolidation TASK>.md deliverables/<run-id>/parts/<document TASK>.md` prints the lines of a document part the consolidation dropped or changed; run it for each document part, not for findings parts, which the consolidation reshapes into its fixed sections; differences in headings are expected), the contradictions between parts are listed in its report rather than silently resolved, and all the fixed sections exist (executive summary, every part in outline order, confirmed findings, Corrected false positives, recommendation).

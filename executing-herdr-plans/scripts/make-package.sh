@@ -98,8 +98,9 @@ TASK_TEXT=$(section "Task $TASK:" 3)
 [ -n "$TASK_TEXT" ] || die "task heading not found: '### Task $TASK:' (append the task to the plan first)"
 
 # The task header is the first line starting with ** right under the heading; its
-# fields are read from there only, never from the task body.
-TASK_HEADER=$(printf '%s\n' "$TASK_TEXT" | awk 'NR > 1 && NF { if ($0 ~ /^\*\*/) print; exit }')
+# fields are read from there only, never from the task body. awk reads all its
+# input (no early exit), so a large task section cannot SIGPIPE printf.
+TASK_HEADER=$(printf '%s\n' "$TASK_TEXT" | awk 'NR > 1 && NF && !seen { seen = 1; if ($0 ~ /^\*\*/) print }')
 header_field() {
   printf '%s\n' "$TASK_HEADER" | grep -m1 -o "\*\*$1:\*\* [^·]*" | sed -e "s/^\*\*$1:\*\* //" -e 's/[[:space:]]*$//' || true
 }
@@ -156,7 +157,10 @@ if [ "$KIND" = findings ]; then
   ALLOWED_LINE="Allowed writes: only \`$REPORT\` and \`$REPORTS/evidence/$TASK/\` (create the folder if missing). Everything else is read-only: do not edit, create or delete anything in the sources or the coordination checkout, and do not touch dependency manifests or lockfiles (need a dependency → BLOCKED)."
   OUTPUT="Output: write \`$REPORT\` with: Task, Attempt, Status (PASS|FAIL|BLOCKED), the model you ran as (from your session/status line if visible, else \"not verified\"), the scope covered and not covered, commands run with observed results, and findings in the \"Findings format\" contract, each with the ID \`$TASK-F<NN>\` (F01, F02, ...) and its evidence saved under \`$REPORTS/evidence/$TASK/\`. No secrets, tokens, passwords or hashes in the report or the evidence."
 elif [ "$KIND" = document ]; then
-  HTML_PART=; printf '%s\n' "$TASK_TEXT" | grep -qiE '\.html|format:\*{0,2}[[:space:]]+html' && HTML_PART=" and \`$REPORTS/parts/$TASK.html\`"
+  HTML_PART=
+  if printf '%s\n' "$TASK_TEXT" | grep -iE '\.html|format:\*{0,2}[[:space:]]+html' > /dev/null; then
+    HTML_PART=" and \`$REPORTS/parts/$TASK.html\`"
+  fi
   ROLE_LINE="document_worker (single task, no orchestration)"
   OBJECTIVE="write **only** the document part of the task section \"$TASK\" quoted at the end to \`$REPORTS/parts/$TASK.md\`, following the \"Document outline\" contract and citing a \"Sources\" entry for every claim, and write the report. **Do not edit the sources and do not commit.**"
   ALLOWED_LINE="Allowed writes: only \`$REPORT\` and \`$REPORTS/parts/$TASK.md\`$HTML_PART (create the folder if missing). Everything else is read-only: do not edit, create or delete anything in the sources or the coordination checkout, and do not touch dependency manifests or lockfiles (need a dependency → BLOCKED)."

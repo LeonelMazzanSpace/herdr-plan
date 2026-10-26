@@ -77,6 +77,19 @@ run "$SCRIPT" "${COMMON[@]}" "${CODE_ARGS[@]}" --task T-010
 if [ "$RC" = 0 ] && pkg_has "$REPORTS/T-010.package.md" 'implement_worker'; then pass kind_read_only_from_header_line
 else bad kind_read_only_from_header_line "rc=$RC $ERR"; fi
 
+# A task section larger than the pipe buffer must not kill the script (SIGPIPE).
+BIG_PLAN="$WORK/big-plan.md"
+{
+  cat "$PLAN"
+  printf '\n### Task T-011: Write a very large section\n\n**Kind:** document · **Model:** sonnet · **Depends on:** T-002 · **Contracts:** Document outline, Sources · **Vault:** none\n\n**Deliverable format:** html.\n\n'
+  awk 'BEGIN { for (i = 0; i < 1500; i++) printf "Filler line %d of the large task section, padded to make the section exceed the pipe buffer by a wide margin.\n", i }'
+} > "$BIG_PLAN"
+run "$SCRIPT" --plan "$BIG_PLAN" --model sonnet --why test --run-id run-1 --coord /coord --task T-011
+if [ "$(awk '/^### Task T-011:/ { f = 1 } f' "$BIG_PLAN" | wc -c)" -gt 140000 ] \
+  && [ "$RC" = 0 ] && pkg_has "$REPORTS/T-011.package.md" 'document_worker' \
+  && grep '^Allowed writes:' "$REPORTS/T-011.package.md" | grep -qF 'parts/T-011.html'; then pass large_task_section_builds
+else bad large_task_section_builds "rc=$RC $ERR"; fi
+
 run "$SCRIPT" "${COMMON[@]}" --task T-004
 if [ "$RC" = 0 ] && pkg_has "$REPORTS/T-004.package.md" 'findings_worker'; then pass kind_normalized
 else bad kind_normalized "rc=$RC $ERR"; fi
