@@ -58,6 +58,13 @@ if [ "$RC" = 0 ] && pkg_has "$P" 'document_worker' && pkg_has "$P" 'parts/T-003.
   && pkg_has "$P" '## Document outline' && ! grep -qiE 'branch|merge-base' "$P"; then pass document_package
 else bad document_package "rc=$RC $ERR"; fi
 
+if grep '^Allowed writes:' "$P" | grep -qF 'parts/T-003.html'; then pass document_html_write_allowed
+else bad document_html_write_allowed "html part not in the allowed writes"; fi
+
+run "$SCRIPT" "${COMMON[@]}" --task T-007
+if [ "$RC" = 0 ] && ! grep '^Allowed writes:' "$REPORTS/T-007.package.md" | grep -qF '.html'; then pass document_md_no_html_write
+else bad document_md_no_html_write "rc=$RC or html path present for an md deliverable"; fi
+
 run "$SCRIPT" "${COMMON[@]}" --task T-004
 if [ "$RC" = 0 ] && pkg_has "$REPORTS/T-004.package.md" 'findings_worker'; then pass kind_normalized
 else bad kind_normalized "rc=$RC $ERR"; fi

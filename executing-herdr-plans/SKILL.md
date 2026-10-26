@@ -41,7 +41,7 @@ The `-n` label is only Claude's display name.
 
 ## What changes per kind
 
-Each task has a `Kind` (`code` when the header has none). The core below works for every kind. A kind's own steps are in its file, which you read only when the plan has that kind. Its headings tell where each step goes: Stack confirmation or Scope and access confirmation (Preflight 4), Preparing (Wave Loop 1), Accepting (Accepting 2–3), Integrating (Accepting 6), Failures, Closing and Red flags.
+Each task has a `Kind` (`code` when the header has none). The core below works for every kind. A kind's own steps are in its file, which you read only when the plan has that kind. Its headings tell where each step goes: Stack confirmation or Scope and access confirmation (Preflight 4), T-000 for this kind (Preflight 10), Preparing (Wave Loop 1), Accepting (Accepting 2–3), Fix rounds (Accepting 5, non-code kinds), Integrating (Accepting 6), Failures, Closing and Red flags.
 
 | Kind | What the worker delivers | Read when the plan has it |
 |---|---|---|
@@ -225,7 +225,7 @@ For plans with findings or document tasks the order is: consolidation task, deli
    - update `last-sync`, run the validator, and queue anything that fails in the scratchpad.
 5. **ClickUp final sync** (if the worker ran): send the last events, including the `verified` states and the cross-cutting review's fix tasks and deferred debt. Read the board back (`clickup_filter_tasks` on the list) and compare it with the scratchpad's tasks table. Record the result in the scratchpad's ClickUp section; if they differ, say which tasks. Then `/exit` the worker.
 6. Close only the panes this run created, except your own. Keep worktrees, branches and databases until the user confirms cleanup.
-7. Update the scratchpad and, if the project keeps one, the daily log (one line per milestone during the run, not only at the end). Give the user the result, the checks run, limitations, remaining work and live resources. Push, PR or merge to `main` only with explicit authorization.
+7. Update the scratchpad and, if the project keeps one, the daily log (one line per milestone during the run, not only at the end). Give the user the result, including the deliverable's absolute path (plans with findings or document tasks), the checks run, limitations, remaining work and live resources. Push, PR or merge to `main` only with explicit authorization.
 
 ## Handing Off to a Relief Orchestrator
 

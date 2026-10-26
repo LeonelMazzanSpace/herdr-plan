@@ -58,6 +58,8 @@ Critical, Important, Minor.
 
 **Kind:** document · **Model:** sonnet · **Depends on:** T-002 · **Contracts:** Document outline, Sources · **Vault:** none
 
+**Deliverable format:** html. Generate `<report-dir>/parts/T-003.html` from the `.md`.
+
 - [ ] **Step 1:** draft the section.
 
 ### Task T-004: Audit with odd Kind spacing
@@ -77,3 +79,11 @@ Critical, Important, Minor.
 **Kind:** findings · **Model:** sonnet · **Depends on:** none · **Contracts:** Findings format, Severity scale · **Vault:** concepts/Pedido
 
 - [ ] **Step 1:** survey the flow.
+
+### Task T-007: Write the appendix
+
+**Kind:** document · **Model:** sonnet · **Depends on:** T-002 · **Contracts:** Document outline, Sources · **Vault:** none
+
+**Deliverable format:** md.
+
+- [ ] **Step 1:** draft the appendix.

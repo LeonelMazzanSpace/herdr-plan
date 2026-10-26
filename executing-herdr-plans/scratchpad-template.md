@@ -29,11 +29,12 @@ Updated: <YYYY-MM-DD HH:MM TZ> | Run: <run-id> | Orchestrator: orch-<N> (pane <i
 <COORDINATION_ROOT, coordination branch and base, spec, plan, plan summary, vault and notes read>
 <Verified versions: herdr, Claude Code (launch flags), Superpowers, vault MCP; failed MCPs and the workaround>
 <Report dir; worktree root; database naming>
+<Deliverable: path, format, commit decision D<n>; sources baseline>
 <Stack confirmed: <date> by the user, D-numbers of the choices; conflicts and undecided rows found and how they were resolved; "pending" while waiting>
 
 ## Tasks and agents
-| ID | Task | Status | Dependencies | Agent/pane | Model/rationale (effective) | Worktree/branch | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| ID | Task | Kind | Status | Dependencies | Agent/pane | Model/rationale (effective) | Worktree/branch | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 ## Remaining work and blockers
 <Item, impact, owner, action required. Use "not applicable" with a reason where it fits.>

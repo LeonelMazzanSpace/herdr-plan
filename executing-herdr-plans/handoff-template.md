@@ -9,6 +9,7 @@ Two blocks. The outgoing orchestrator writes the first one into `SCRATCHPAD.md` 
 Outgoing: orch-<N-1> (pane <your $HERDR_PANE_ID>), context <NN>% · Relief: orch-<N> (pane <relief pane id>, effective model <as read from its status line | not verified>)
 Launch: model <alias> (D<n>), permission mode <mode> (D<n>), cap <N> panes (D<n>), report dir <report-dir>, plan <plan path>
 Safe point: <what just finished, e.g. "T-004 merged, gate green at <sha>"; nothing is half done>
+Deliverable: <parts integrated / missing, consolidation state | not applicable>
 Layout: column A <pane ids>, column B <pane ids | none>
 
 Live agents (the relief re-arms one background `herdr agent wait NAME --timeout 3600000` per `working` row):
