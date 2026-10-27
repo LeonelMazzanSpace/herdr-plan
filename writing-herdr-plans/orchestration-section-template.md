@@ -64,11 +64,11 @@ herdr agent prompt t004 "Read $report_dir/T-004.package.md and execute it exactl
 ```bash
 split=$(herdr pane split --pane <worker-column-pane> --direction down --cwd <COORDINATION_ROOT> --no-focus)
 pane=$(printf '%s' "$split" | jq -r '.result.pane.pane_id')
-herdr agent start t003 --kind claude --pane "$pane" --timeout 120000 -- --model opus --permission-mode dontAsk --allowedTools "<verified allowlist>" --add-dir "$report_dir" -n "T-003 <short label>"
+herdr agent start t003 --kind claude --pane "$pane" --timeout 120000 -- --model opus --permission-mode dontAsk --allowedTools "<verified allowlist>" --add-dir "$report_dir" --add-dir <each source root outside COORDINATION_ROOT> -n "T-003 <short label>"
 herdr agent prompt t003 "Read $report_dir/T-003.package.md and execute it exactly. Write your report to $report_dir/T-003.md and end with STATUS and REPORT lines." --wait --timeout 3600000
 ```
 
-`<verified allowlist>` is the read tools, the read-only commands the plan names, and Write/Edit only under `$report_dir`, in the syntax the installed `claude --help` accepts (checked at preflight). Reviewers of these tasks launch the same way, with `-n "T-003 review"`.
+`<verified allowlist>` is the read tools, the read-only commands the plan names, and Write/Edit only under `$report_dir`, in the syntax the installed `claude --help` accepts (checked at preflight). A worker cannot read a source root outside its working directory unless it is added with `--add-dir`, so list each one. Reviewers of these tasks launch the same way, with `-n "T-003 review"`.
 
 **Reviewer launch.** Same flags, `-n "T-0NN review"`, on the reviewer model from the table, with the prompt "Read $report_dir/T-0NN.review-package.md and execute it exactly." The reviewer runs in a new pane, or in the implementer's pane after `/exit`. The review package makes it read-only; it writes `$report_dir/T-0NN.review.md`.
 
