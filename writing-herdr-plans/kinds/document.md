@@ -12,11 +12,11 @@ A document task replaces the TDD steps of writing-plans with the template below.
 **Kind:** document · **Model:** sonnet · **Depends on:** T-000 · **Parallel with:** T-005 · **Contracts:** Document outline, Style guide, Sources, Comparison criteria · **Vault:** none
 
 **Part:** `3. Operational cost` (outline sections `3.1 Pricing model`, `3.2 Monthly cost at 10k users`).
-**Sources:** S1, S2 and S4 of the Sources contract. No other source.
+**Sources:** S1, S2 and S4 of the Sources contract. No other source, except one you discover and list under "New sources" (Step 3).
 
 **Acceptance criteria:**
 1. The part has exactly the two outline headings of its section, spelled as in the Document outline.
-2. Every claim ends with a source tag `[S<n>]` that exists in the Sources contract; opinions are marked `Note:`.
+2. Every claim ends with a source tag `[S<n>]` that exists in the Sources contract or is listed under "New sources" in your report; opinions are marked `Note:`.
 3. Each option is scored on the Comparison criteria "Price at 10k users" and "Lock-in" with the same scale.
 
 - [ ] **Step 1: Read sources.** Read S1, S2 and S4 completely. List the facts you will use, each with its source number.
@@ -73,7 +73,7 @@ Three variants exist, and the consolidation task states which applies (no findin
 
 ### Consolidation when the plan has no findings tasks
 
-There are no findings parts: the fixed sections are only the executive summary, the parts in outline order and the recommendation. The task has no "confirmed findings" and no "Corrected false positives" (drop them from criterion 1 and Step 1), and the Verify count is the number of outline sections plus `2`.
+There are no findings parts: the fixed sections are only the executive summary, the parts in outline order and the recommendation. The task has no "confirmed findings" and no "Corrected false positives" (drop them from criterion 1 and Step 1), and its `**Sources:**` line says only "`deliverables/<run-id>/parts/` (read only): the document parts", and the Verify count is the number of outline sections plus `2`.
 
 ### Consolidation when the plan has only findings tasks
 

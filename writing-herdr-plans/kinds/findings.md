@@ -61,6 +61,7 @@ One row per finding, in the worker's report under `## Findings`:
 - Severity: a value of the Severity scale, exactly as written.
 - Evidence: `file:line`, command plus output, URL, or an evidence file under `evidence/<TASK>/` (saved output, screenshot). Never empty.
 - Problems that did not reproduce go under `## Not reproduced`, outside the table.
+- At integration the orchestrator moves a finding the reviewer could not reproduce to `## Corrected false positives`, a table with the same six columns and the reviewer's observation at the start of Impact. The gate reads only the rows under `## Findings`.
 - With a Control list, each control with no finding goes under `## Controls met`, outside the findings table:
 
   | Control | Evidence |
@@ -110,11 +111,11 @@ The orchestrator runs these after each findings part is copied to `deliverables/
 ```bash
 P=deliverables/<run-id>; F="$P/parts/T-002.md $P/parts/T-003.md"
 grep -ho '^| T-[0-9]*-F[0-9]*' $F | sort | uniq -d
-awk -F'|' '/^\| T-[0-9]+-F/ { for (i = 2; i <= 7; i++) if ($i ~ /^[[:space:]]*$/) bad++ } END { print (bad ? "EMPTY CELL" : "cells ok") }' $F
+awk -F'|' '/^## /{ s = ($0 == "## Findings") } s && /^\| T-[0-9]+-F/ { for (i = 2; i <= 7; i++) if ($i ~ /^[[:space:]]*$/) bad++ } END { print (bad ? "EMPTY CELL" : "cells ok") }' $F
 grep -ho 'evidence/T-[0-9]*/[A-Za-z0-9._-]*' $F | sort -u | while read -r f; do test -s "$P/$f" || echo "MISSING $f"; done
 ```
 
-Expected: no output from the first (no repeated finding ID across parts), `cells ok` (every required field is filled), no `MISSING` (every evidence link exists under `deliverables/<run-id>/evidence/`).
+Expected: no output from the first (no repeated finding ID across parts), `cells ok` (every required field of the confirmed findings is filled; "Corrected false positives" rows are not checked), no `MISSING` (every evidence link exists under `deliverables/<run-id>/evidence/`).
 
 ## Worker environment (example)
 

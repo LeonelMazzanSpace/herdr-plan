@@ -100,8 +100,9 @@ TASK_TEXT=$(section "Task $TASK:" 3)
 # The task header is the first non-blank line under the heading when it starts
 # with **; its fields are read from there only, never from the task body. A task
 # with no such line reads its fields from the whole task text, as the baseline
-# did, except Kind, which never falls back (no header line means code). awk reads all its input (no early exit), so a large task section cannot
-# SIGPIPE printf.
+# did, except Kind, which never falls back (no header line means code). awk
+# reads all its input (no early exit), so a large task section cannot SIGPIPE
+# printf.
 TASK_HEADER=$(printf '%s\n' "$TASK_TEXT" | awk 'NR > 1 && NF && !seen { seen = 1; if ($0 ~ /^\*\*/) print }')
 HEADER_SRC=${TASK_HEADER:-$TASK_TEXT}
 header_field() {
