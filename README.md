@@ -13,9 +13,11 @@ They are used together: the first writes the plan with fixed headings and the se
 
 1. **Plan** (`writing-herdr-plans`): the approved spec becomes a plan with decisions, contracts, waves and one task per worker, plus a summary in the user's language.
 2. **Confirm the stack (code) or scope and access (other kinds)** (`executing-herdr-plans`, preflight): before creating anything, the orchestrator reads the repo and the plan. For code it shows you a table of libraries and architecture (ORM, database, migrations, auth, frontend, tests, CI, structure) and flags conflicts between repo and plan, missing decisions, and libraries a task uses that T-000 does not install. For audits, research and documents it confirms the scope, the sources and the access the workers need. You confirm or correct; it is the only initial stop.
-3. **Execute on its own**: the orchestrator runs the plan wave by wave. One worker implements each task, another reviews it, and it is integrated behind a full gate after every merge.
+3. **Execute on its own**: the orchestrator runs the plan wave by wave. One worker does each task and another reviews it.
+   - Code is integrated behind a full gate after every merge.
+   - A findings report (with the reviewer's verdicts applied) or a document part is copied into the deliverable's `parts/` folder and checked by the plan's gate. Before the first findings or document worker, the orchestrator launches a canary worker to prove the read-only permissions let it write its report.
    - The orchestrator reads its own context usage from its Herdr pane. At 70% it writes a hand-off entry in `SCRATCHPAD.md`, starts a relief orchestrator in a new pane, waits for it to confirm, and leaves; the relief closes the old pane and continues. It never relies on context compaction. Your status line must show the percentage (`ctx:N%`).
-4. **Verify and close**: plans with an interface get a final step covering E2E, usability and animations, a cross-cutting review, vault and board sync, and the summary for the user.
+4. **Verify and close**: plans with an interface get a final step covering E2E, usability and animations. Plans with findings or document tasks get a consolidation task that builds the deliverable (`.md` or `.html`) from the parts, followed by a cross-cutting review of it; mixed plans get both reviews. Every plan ends with vault and board sync and the summary for the user, including the deliverable's absolute path when there is one.
 
 ## Kinds of task
 
