@@ -70,7 +70,7 @@ Each task has a `Kind` (`code` when the header has none). T-000 and reserved slo
    - Launching with `--permission-mode auto` may be denied by the permission classifier. If so, ask the user once to authorize it and record the answer as a D-number.
    - If the user refuses, ask which write-capable mode they approve (e.g. `acceptEdits`, approving commands in each pane). Never switch to bypass flags.
    - Non-code workers (findings, document) do not use a write-capable mode: they launch with `--permission-mode dontAsk --allowedTools "<read tools, read-only commands the plan names, Write/Edit only under <report-dir>>"`. Verify both flags against `claude --help` before the first launch, and have the user approve the allowlist in step 4.
-   - **Canary.** Before the first non-code dispatch, launch one non-code worker with the verified allowlist and prompt it to write `<report-dir>/canary.md`. If the file does not appear, fix the allowlist path syntax (e.g. absolute paths in the permission rules) and repeat before dispatching. Record the result in the scratchpad.
+   - **Canary.** Before the first non-code dispatch, launch one non-code worker with the verified allowlist and prompt it to write `<report-dir>/canary.md` and to read one file from each source root, reporting each first line in the canary. If the file does not appear or a read fails, fix the launch (`--add-dir` of the source root, or the allowlist path syntax, e.g. absolute paths in the permission rules) and repeat before dispatching. Record the result in the scratchpad.
 8. **Keep the machine awake.** Sleep pauses every worker and cuts off reports. Ask the user first; with their OK, run `caffeinate -i` in a pane you create.
 9. **ClickUp sync** (skip if the plan says `**ClickUp:** none`). Verify first, then start the worker:
    - the plan's board decision is `approved`. If it is still `to confirm`, ask the user now: creating tasks is outward-facing;
@@ -101,8 +101,8 @@ Dispatch while there are fewer than **6 live worker panes**, or the plan's lower
    - **Worker 2** (two-column layout): split column A's first pane `--direction right`, creating column B.
    - **Later workers:** first reuse a pane freed by `/exit` (`cd <wt>` there); otherwise split `--direction down` in whichever column has fewer panes.
    - Pass the worker's variables at split time: `--env E2E_DATABASE_NAME=<db>_test`. Read the id from `.result.pane.pane_id`.
-   - In a reused pane, whether for an implementer or a reviewer, run `herdr pane run <pane> "cd <wt> && export E2E_DATABASE_NAME=<db>_test"`.
-   - Non-code tasks (findings, document): `<wt>` is the coordination root, pass no `--env`, and launch with the non-code mode of Preflight step 7.
+   - In a reused pane, whether for an implementer or a reviewer, run `herdr pane run <pane> "cd <wt> && export E2E_DATABASE_NAME=<db>_test"` (code tasks; non-code tasks export no env).
+   - Non-code tasks (findings, document): `<wt>` is the coordination root, pass no `--env`, and launch with the non-code mode of Preflight step 7, adding `--add-dir <each source root outside COORDINATION_ROOT>` next to `--add-dir <report-dir>`.
 4. **Launch:**
    ```bash
    herdr agent start t0NN --kind claude --pane <pane> --timeout 120000 -- --model <plan model> --permission-mode <approved mode> --add-dir <report-dir> -n "T-0NN <label>"
@@ -205,7 +205,7 @@ DAG deviations are allowed when they are provably safe; for example, a read-only
 
 ## Closing the Run
 
-For plans with findings or document tasks the order is: consolidation task, deliverable (step 2b), cross-cutting review (step 1), reserved fix tasks, final gate.
+Steps run in the order of the numbers, except in plans with findings or document tasks, where they run in this order: the consolidation task is accepted and integrated, then step 2b (deliverable), step 1 (cross-cutting review), the fix tasks it produces, step 2 (final gate), then steps 3 to 7.
 
 1. Run the **cross-cutting review** (read-only, opus) on the integrated branch or the deliverable.
    - Package it with `make-package.sh --role review`. It gets no per-task review and no merge; its findings report is the result.
@@ -254,7 +254,7 @@ At 70% context you hand the run to a fresh session, `orch-<N>`, that resumes fro
 
 ### As the relief
 
-1. Preflight as a resume: `HERDR_ENV`, versions, your own context reading, `claude mcp list` for the vault and ClickUp MCPs. Skip the stack confirmation under the resume rule of preflight step 4, and skip T-000. Reuse the recorded D-numbers for model, permission mode and cap; do not create new ones.
+1. Preflight as a resume: `HERDR_ENV`, versions, your own context reading, `claude mcp list` for the vault and ClickUp MCPs. Skip the stack confirmation under the resume rule of preflight step 4, and skip T-000. Read the kind files the plan uses, as the core says, before continuing. Reuse the recorded D-numbers for model, permission mode and cap; do not create new ones.
 2. Read the whole scratchpad (D-numbers, tasks table, ClickUp section), the plan and its summary; the last hand-off entry is your starting point. Append `Resumed by orch-<N> at <time>` to Recent activity. From that line, you are the only writer; only then update the header with your context reading and `Context monitoring: ok`.
 3. Reconcile `herdr agent list`, `git worktree list` and the report dir with the entry. A difference (a report already present, an agent gone) is a line in Recent activity now and a step of the wave loop later, not a reason to act here. Re-arm one background `herdr agent wait <name> --timeout 3600000` per agent whose row says `working`. Send the queued ClickUp events.
 4. `herdr agent wait <outgoing name> --timeout 600000` until it is idle, then `herdr pane close <its pane>`. Closing the previous orchestrator's pane is the one exception to "close only panes you created"; never close it while it is `working` (wait again). Then `herdr agent focus orch-<N>` and tell the user in one line that you own the run in this pane.

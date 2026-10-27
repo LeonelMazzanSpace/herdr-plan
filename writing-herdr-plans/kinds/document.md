@@ -12,16 +12,16 @@ A document task replaces the TDD steps of writing-plans with the template below.
 **Kind:** document · **Model:** sonnet · **Depends on:** T-000 · **Parallel with:** T-005 · **Contracts:** Document outline, Style guide, Sources, Comparison criteria · **Vault:** none
 
 **Part:** `3. Operational cost` (outline sections `3.1 Pricing model`, `3.2 Monthly cost at 10k users`).
-**Sources:** S1, S2 and S4 of the Sources contract. No other source.
+**Sources:** S1, S2 and S4 of the Sources contract. No other source, except one you discover and list under "New sources" (Step 3).
 
 **Acceptance criteria:**
 1. The part has exactly the two outline headings of its section, spelled as in the Document outline.
-2. Every claim ends with a source tag `[S<n>]` that exists in the Sources contract; opinions are marked `Note:`.
+2. Every claim ends with a source tag `[S<n>]` that exists in the Sources contract or is listed under "New sources" in your report; opinions are marked `Note:`.
 3. Each option is scored on the Comparison criteria "Price at 10k users" and "Lock-in" with the same scale.
 
 - [ ] **Step 1: Read sources.** Read S1, S2 and S4 completely. List the facts you will use, each with its source number.
 - [ ] **Step 2: Write the part.** Write `<report-dir>/parts/T-004.md` with the headings of your section, following the Style guide. One claim per line.
-- [ ] **Step 3: Cite.** End every claim with `[S<n>]`. Remove a claim no source supports, or mark it `Note:` if it is your inference. Report any source you needed that is not in the list under "open questions"; do not add it.
+- [ ] **Step 3: Cite.** End every claim with `[S<n>]`. Remove a claim no source supports, or mark it `Note:` if it is your inference. A source you needed that is not in the list: do not edit the Sources contract; list it in your report under "New sources" as the next free `S<n>` (source, what it covers, accessed date) and cite it. The orchestrator appends it to the plan's Sources at integration.
 - [ ] **Step 4: Verify.**
   ```bash
   grep -c '^## ' <report-dir>/parts/T-004.md
@@ -29,7 +29,7 @@ A document task replaces the TDD steps of writing-plans with the template below.
   grep -o '\[S[0-9]*\]' <report-dir>/parts/T-004.md | grep -vE '^\[S(1|2|4)\]$'
   grep -vE '^(#|$|\|)' <report-dir>/parts/T-004.md | grep -vcE '\[S[0-9]+\]|^Note:'
   ```
-  Expected: `2`; no `MISSING`; no output from the third command, which exits 1 because it selects no line (only allowed tags); and `0` from the last, which also exits 1 because the count is 0 (no line without a tag or a `Note:` prefix).
+  Expected: `2`; no `MISSING`; no output from the third command, which exits 1 because it selects no line (only allowed tags, or the ones listed under "New sources"); and `0` from the last, which also exits 1 because the count is 0 (no line without a tag or a `Note:` prefix).
 ````
 
 ## Rules for document workers
@@ -68,6 +68,12 @@ Every plan with findings or document tasks has one: kind `document`, in the last
   ```
   Expected: the number of outline sections plus the four fixed ones, and, for `html` only, `0` (exit 1: no match).
 ````
+
+Three variants exist, and the consolidation task states which applies (no findings tasks, only findings tasks, or both): the template above is for a plan with both kinds of task.
+
+### Consolidation when the plan has no findings tasks
+
+There are no findings parts: the fixed sections are only the executive summary, the parts in outline order and the recommendation. The task has no "confirmed findings" and no "Corrected false positives" (drop them from criterion 1 and Step 1), and its `**Sources:**` line says only "`deliverables/<run-id>/parts/` (read only): the document parts", and the Verify count is the number of outline sections plus `2`.
 
 ### Consolidation when the plan has only findings tasks
 
@@ -124,8 +130,21 @@ Write the ones the plan needs as `##` sections; a task lists them by exact headi
 T-000 stays with the orchestrator. For a plan with document tasks it:
 
 1. creates `<report-dir>/parts`;
-2. proves every source is readable: `test -r /srv/acme/api/docs/load-test-2026-09.pdf`, `curl -sI -o /dev/null -w '%{http_code}\n' https://acme-queue.example/pricing` (200), and the baseline of a repo source as in `kinds/findings.md`;
+2. proves every source is readable: `test -r /srv/acme/api/docs/load-test-2026-09.pdf`, `curl -sI -o /dev/null -w '%{http_code}\n' https://acme-queue.example/pricing` (200), and records the baseline of a repo source as in `kinds/findings.md`; for a local file outside a repo, `sha256sum /srv/acme/specs/brief.pdf > <report-dir>/baseline-brief.sha256` (`shasum -a 256` on macOS), compared by checksum in the scope check; a URL is read-only by nature, so nothing is recorded;
 3. checks every tool the tasks name (`command -v pdftotext`) and that the launch flags exist in `claude --help`.
+
+## Gate (plan's integration checks)
+
+The orchestrator runs these after each part is copied to `deliverables/<run-id>/parts/`, from the coordination root. Write them in the plan with the real headings, tasks and plan path.
+
+```bash
+P=deliverables/<run-id>/parts
+for t in T-004 T-005; do test -s "$P/$t.md" || echo "MISSING PART $t"; done
+for h in '## 3.1 Pricing model' '## 3.2 Monthly cost at 10k users'; do grep -Fxq "$h" $P/*.md || echo "MISSING $h"; done
+grep -ho '\[S[0-9]*\]' $P/*.md | sort -u | tr -d '[]' | while read -r s; do grep -q "^| $s |" <plan path> || echo "UNKNOWN $s"; done
+```
+
+Expected: no output. The headings and parts come from the Document outline, and the tags resolve against the plan's Sources list. After each part, run it with only the parts and headings integrated so far; run it with the full lists before the consolidation starts and on the final `<name>.md`.
 
 ## Worker environment (example)
 
@@ -133,6 +152,7 @@ T-000 stays with the orchestrator. For a plan with document tasks it:
 ## Worker environment
 
 - You write; you change no source. Your working directory is `/srv/acme/api`. Read the files listed in your task's Sources freely; never write there.
+- Other source roots, added to your session with `--add-dir`: `/srv/acme/specs` (read-only).
 - You write only `<report-dir>/parts/T-0NN.md` and `<report-dir>/T-0NN.md` (the real paths are in your package).
 - Network: GET requests to `https://acme-queue.example` only. No other hosts.
 - No credentials are needed. Never touch `.env` files, `SCRATCHPAD.md` or other workers' parts. Read under `deliverables/` only when your task's Sources name it; never write there.
@@ -142,6 +162,8 @@ T-000 stays with the orchestrator. For a plan with document tasks it:
 
 - Every document task lists `Document outline` and `Sources`, has a `**Part:**` line naming outline headings that exist in the contract, and cites only source numbers that exist.
 - Within a wave, document tasks write distinct outline sections: no heading is owned by two tasks.
+- The plan has a concrete gate for its document tasks (every outline heading present across the parts, no part missing, every `[S<n>]` tag in the Sources list), and the Orchestration section's integration gate runs it.
+- The consolidation task states which variant applies: no findings tasks, only findings tasks, or both.
 - There is a consolidation task (kind `document`, last wave of findings and document work) that depends on every part; the cross-cutting review comes after it, then the reserved fix tasks.
 - The deliverable decision (path, format, committed or not) exists and is `to confirm` until the user answers; with format `html`, the consolidation Verify runs the `grep` check.
 

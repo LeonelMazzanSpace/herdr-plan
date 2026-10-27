@@ -83,7 +83,7 @@ run_id=shop-audit-<yyyymmdd>   # resolved at execution
 report_dir="$HOME/.cache/herdr-reports/$run_id"; mkdir -p -m 700 "$report_dir"
 split=$(herdr pane split --pane <worker-column-pane> --direction down --cwd /srv/acme/shop-audit --no-focus)
 pane=$(printf '%s' "$split" | jq -r '.result.pane.pane_id')
-herdr agent start t003 --kind claude --pane "$pane" --timeout 120000 -- --model opus --permission-mode dontAsk --allowedTools "Read,Grep,Glob,Bash(rg:*),Bash(git -C /srv/acme/shop-api log:*),Bash(git -C /srv/acme/shop-api status:*),Write($report_dir/**),Edit($report_dir/**)" --add-dir "$report_dir" -n "T-003 consolidation"
+herdr agent start t003 --kind claude --pane "$pane" --timeout 120000 -- --model opus --permission-mode dontAsk --allowedTools "Read,Grep,Glob,Bash(rg:*),Bash(git -C /srv/acme/shop-api log:*),Bash(git -C /srv/acme/shop-api status:*),Write($report_dir/**),Edit($report_dir/**)" --add-dir "$report_dir" --add-dir /srv/acme/shop-api -n "T-003 consolidation"
 herdr agent prompt t003 "Read $report_dir/T-003.package.md and execute it exactly. Write your report to $report_dir/T-003.md and end with STATUS and REPORT lines." --wait --timeout 3600000
 ```
 
@@ -118,7 +118,7 @@ Expected: no output from the first command, `cells ok`, no `MISSING`, and `0`. T
 
 ## Worker environment
 
-- You audit or write; you change no source. Your working directory is `/srv/acme/shop-audit`. Read `/srv/acme/shop-api` freely; never write there.
+- You audit or write; you change no source. Your working directory is `/srv/acme/shop-audit`. Read `/srv/acme/shop-api` (added to your session with `--add-dir`) freely; never write there.
 - You write only your own files under the report directory: `<report-dir>/T-0NN.md`, `<report-dir>/evidence/T-0NN/` or `<report-dir>/parts/T-0NN.md` (the real paths are in your package). Read under `deliverables/` only when your task's Sources name it; never write there.
 - No network: you make no requests to any host.
 - No credentials are needed. Never touch `.env` files, `SCRATCHPAD.md`, other workers' reports or dependency manifests.

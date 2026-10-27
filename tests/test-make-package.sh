@@ -130,6 +130,24 @@ expect_fail code_requires_worktree "missing --worktree"
 run "$SCRIPT" "${COMMON[@]}" --task T-006
 expect_fail vault_required_for_findings "pass --vault-excerpts"
 
+# A code task with a prose line before its header line has no header line: the
+# header fields (here Contracts) come from the whole task text, as in the baseline.
+PROSE_PLAN="$WORK/prose-plan.md"
+{
+  cat "$PLAN"
+  printf '\n### Task T-012: Build the order model with a lead-in\n\nThis task builds on the order model decided above.\n\n**Model:** sonnet · **Depends on:** none · **Contracts:** Data contract · **Vault:** none\n\n- [ ] **Step 1:** write the model.\n'
+} > "$PROSE_PLAN"
+prose_args=(--plan "$PROSE_PLAN" --model sonnet --why test --run-id run-1 --coord /coord --task T-012 "${CODE_ARGS[@]}")
+REPORTS=$(mktemp -d "$WORK/reports.XXXXXX")
+if bash "$WORK/baseline.sh" "${prose_args[@]}" --reports "$REPORTS" > /dev/null 2>&1; then
+  cp "$REPORTS/T-012.package.md" "$WORK/baseline.out"
+  rm -f "$REPORTS/T-012.package.md"
+  if bash "$SCRIPT" "${prose_args[@]}" --reports "$REPORTS" > /dev/null 2>&1 \
+    && cmp -s "$WORK/baseline.out" "$REPORTS/T-012.package.md" && grep -qF 'Order` has `id`' "$REPORTS/T-012.package.md"; then
+    pass headerless_task_identical_to_baseline
+  else bad headerless_task_identical_to_baseline "output differs from baseline or contract missing"; fi
+else bad headerless_task_identical_to_baseline "baseline failed"; fi
+
 # --kind findings on a task with no Kind header makes it a findings task.
 run "$SCRIPT" "${COMMON[@]}" --task T-001 --kind findings
 if [ "$RC" = 0 ] && pkg_has "$REPORTS/T-001.package.md" 'findings_worker'; then pass kind_flag_on_headerless_task

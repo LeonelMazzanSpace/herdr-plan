@@ -97,18 +97,22 @@ is_none() {
 TASK_TEXT=$(section "Task $TASK:" 3)
 [ -n "$TASK_TEXT" ] || die "task heading not found: '### Task $TASK:' (append the task to the plan first)"
 
-# The task header is the first line starting with ** right under the heading; its
-# fields are read from there only, never from the task body. awk reads all its
-# input (no early exit), so a large task section cannot SIGPIPE printf.
+# The task header is the first non-blank line under the heading when it starts
+# with **; its fields are read from there only, never from the task body. A task
+# with no such line reads its fields from the whole task text, as the baseline
+# did, except Kind, which never falls back (no header line means code). awk
+# reads all its input (no early exit), so a large task section cannot SIGPIPE
+# printf.
 TASK_HEADER=$(printf '%s\n' "$TASK_TEXT" | awk 'NR > 1 && NF && !seen { seen = 1; if ($0 ~ /^\*\*/) print }')
+HEADER_SRC=${TASK_HEADER:-$TASK_TEXT}
 header_field() {
-  printf '%s\n' "$TASK_HEADER" | grep -m1 -o "\*\*$1:\*\* [^·]*" | sed -e "s/^\*\*$1:\*\* //" -e 's/[[:space:]]*$//' || true
+  printf '%s\n' "${2-$HEADER_SRC}" | grep -m1 -o "\*\*$1:\*\* [^·]*" | sed -e "s/^\*\*$1:\*\* //" -e 's/[[:space:]]*$//' || true
 }
 trim() { printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
 lower() { printf '%s' "$1" | tr 'A-Z' 'a-z'; }
 valid_kind() { case $1 in code|findings|document) return 0 ;; esac; return 1; }
 
-KIND_RAW=$(trim "$(header_field Kind)")
+KIND_RAW=$(trim "$(header_field Kind "$TASK_HEADER")")
 KIND_HEADER=$(lower "$KIND_RAW")
 KIND_FLAG=$(lower "$(trim "$KIND_FLAG")")
 [ -z "$KIND_HEADER" ] || valid_kind "$KIND_HEADER" \
