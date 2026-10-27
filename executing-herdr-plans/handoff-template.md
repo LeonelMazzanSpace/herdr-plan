@@ -9,6 +9,7 @@ Two blocks. The outgoing orchestrator writes the first one into `SCRATCHPAD.md` 
 Outgoing: orch-<N-1> (pane <your $HERDR_PANE_ID>), context <NN>% · Relief: orch-<N> (pane <relief pane id>, effective model <as read from its status line | not verified>)
 Launch: model <alias> (D<n>), permission mode <mode> (D<n>), cap <N> panes (D<n>), report dir <report-dir>, plan <plan path>
 Safe point: <what just finished, e.g. "T-004 merged, gate green at <sha>"; nothing is half done>
+Deliverable: <parts integrated / missing, consolidation state | not applicable>
 Layout: column A <pane ids>, column B <pane ids | none>
 
 Live agents (the relief re-arms one background `herdr agent wait NAME --timeout 3600000` per `working` row):
@@ -32,7 +33,7 @@ You are orch-<N>, the relief orchestrator of run <run-id>, in pane <relief pane 
 
 Do, in this order:
 1. Load the executing-herdr-plans skill and follow "As the relief" in its Handing Off section, starting with its preflight.
-2. Read <COORDINATION_ROOT>/SCRATCHPAD.md in full; your starting point is the last "Hand-off to orch-<N>" entry. Then read the plan <plan path> and its summary. Do not redo T-000 and do not ask about the stack again: it is confirmed in the scratchpad.
+2. Read <COORDINATION_ROOT>/SCRATCHPAD.md in full; your starting point is the last "Hand-off to orch-<N>" entry. Then read the plan <plan path> and its summary. Do not redo T-000 and do not ask about the stack (code) or the scope and access (other kinds) again: it is confirmed in the scratchpad.
 3. Append a `Resumed by orch-<N> at <the current time>` line to the scratchpad's "Recent activity". From that line, you are the only writer.
 4. Reconcile with `herdr agent list`, `git worktree list` and <report-dir>; re-arm one background wait per `working` agent in the entry; send the queued ClickUp events, if any.
 5. Wait until orch-<N-1> is idle (never close it while working), then close its pane: `herdr pane close <pane id>`. Focus yourself and tell the user in one line that you own the run.

@@ -1,0 +1,11 @@
+description: Use when writing an implementation plan from an approved spec that will be executed by an orchestrator Claude session delegating tasks to independent Claude Code workers in Herdr panes, each in its own git worktree
+A plan for Herdr orchestration is a `superpowers:writing-plans` plan plus everything an orchestrator needs to run it with independent workers: fixed contracts, a wave DAG with a model per task, a reproducible worker environment, and sections with fixed headings so each worker's package can be cut out of the plan mechanically.
+**REQUIRED SUB-SKILL:** Use superpowers:writing-plans and follow it entirely (header, Global Constraints, Review Focus, file structure, TDD task steps, no placeholders, self-review). This skill only adds to it and overrides it where stated.
+**Announce at start:** "I'm using the writing-herdr-plans skill to create the orchestrated implementation plan."
+| Header (writing-plans) | Goal, Architecture, Tech Stack, Spec, vault location. The "For agentic workers" line adds: "executed with executing-herdr-plans; a worker implements only its own task". | no |
+| Contract sections (`## Data contract`, `## HTTP contract`, `## Frontend route map`, …) | Fixed shared contracts: schemas, endpoints with exact shapes, error codes, routes, shared copy. | only those a task lists |
+**Model:** opus · **Depends on:** T-001, T-002 integrated · **Parallel with:** T-005, T-006 · **Contracts:** Data contract, HTTP contract · **Vault:** concepts/Pedido, failures/Sobreventa de stock
+- **Permission mode is an execution decision.** Record it as `to confirm` (e.g. "workers run with `--permission-mode auto`, authorized by the user at launch"). In a mode that asks for every command, a worker stalls, and the orchestrator must never answer its prompts.
+- **Closing tasks.** Plan a read-only cross-cutting review on the most capable model, after the last feature task. Reserve IDs after it for fix tasks. Add "Orchestrator closing steps": local run if asked, final gate, vault sync, handoff. Push, PR and merge to a shared branch are listed as "only with explicit authorization".
+Not for: plans executed in one session (use superpowers:writing-plans alone), or a request that only needs analysis.
+- Reserved fix tasks get a single `### Tasks T-0NN … T-0MM: Reserved for review fixes` heading with no header line.

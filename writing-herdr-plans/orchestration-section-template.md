@@ -9,7 +9,7 @@ Workers ignore this section except for "Worker environment".
 
 **Roles.** The orchestrator (this Claude session, pane `<value of $HERDR_PANE_ID>`) owns:
 - T-000;
-- worktrees and databases;
+- worktrees and databases (code tasks); the deliverable (findings and document tasks);
 - dispatch, and dispatch of reviews;
 - merges into `<coordination-branch>` and integration gates;
 - `SCRATCHPAD.md` and the vault.
@@ -24,17 +24,21 @@ Each worker owns exactly one task in one worktree.
 | 1 | T-001 … · T-002 … · T-003 … | T-000 |
 | … | … | … |
 | n-1 | T-0NN E2E, usability and motion pass (tests and findings report only; omit and say so if the plan has no UI) | every feature task |
-| n | T-0NN cross-cutting review (read-only) | everything above, and the E2E, usability and motion pass |
-| n+1 | Fix tasks from the review (T-0NN+1…) · vault sync (orchestrator) | review |
+| n | T-0NN consolidation (`document`; only plans with findings or document tasks) | every findings and document task |
+| n+1 | T-0NN cross-cutting review (read-only; in a plan without code a `findings` task over the deliverable; in a mixed plan two tasks: the code review of the integrated branch and a `findings` task over the deliverable) | everything above, the E2E, usability and motion pass, and the consolidation |
+| n+2 | Fix tasks from the review (T-0NN+1…) · vault sync (orchestrator) | review |
+
+In a plan with no findings or document tasks, drop the consolidation row: the review is wave n and the fixes are wave n+1. In a plan with them, the closing order is consolidation, then review, then fixes.
 
 **Model policy** (verify the effective model from the worker's status line after start):
 
-| Task | Model | Rationale |
-|---|---|---|
-| T-001 | opus | auth/JWT/throttling: security-sensitive |
-| T-002 | sonnet | entities fully specified in the Data contract |
-| … | … | … |
-| Per-task reviewers | opus for <security/transaction tasks>, sonnet otherwise | reviewer at least as capable as the implementer |
+| Task | Kind | Model | Rationale |
+|---|---|---|---|
+| T-001 | code | opus | auth/JWT/throttling: security-sensitive |
+| T-002 | code | sonnet | entities fully specified in the Data contract |
+| T-003 | findings | opus | security audit of the auth module |
+| … | … | … | … |
+| Per-task reviewers | – | opus for <security/transaction tasks>, sonnet otherwise | reviewer at least as capable as the implementer |
 
 **Worker launch** (verified flags on Claude Code <version> / herdr <version>):
 
@@ -55,6 +59,17 @@ herdr agent start t004 --kind claude --pane "$pane" --timeout 120000 -- --model 
 herdr agent prompt t004 "Read $report_dir/T-004.package.md and execute it exactly. Write your report to $report_dir/T-004.md and end with STATUS and REPORT lines." --wait --timeout 3600000
 ```
 
+**Non-code worker launch** (findings and document tasks: no worktree, no database, no `--env`; example T-003):
+
+```bash
+split=$(herdr pane split --pane <worker-column-pane> --direction down --cwd <COORDINATION_ROOT> --no-focus)
+pane=$(printf '%s' "$split" | jq -r '.result.pane.pane_id')
+herdr agent start t003 --kind claude --pane "$pane" --timeout 120000 -- --model opus --permission-mode dontAsk --allowedTools "<verified allowlist>" --add-dir "$report_dir" -n "T-003 <short label>"
+herdr agent prompt t003 "Read $report_dir/T-003.package.md and execute it exactly. Write your report to $report_dir/T-003.md and end with STATUS and REPORT lines." --wait --timeout 3600000
+```
+
+`<verified allowlist>` is the read tools, the read-only commands the plan names, and Write/Edit only under `$report_dir`, in the syntax the installed `claude --help` accepts (checked at preflight). Reviewers of these tasks launch the same way, with `-n "T-003 review"`.
+
 **Reviewer launch.** Same flags, `-n "T-0NN review"`, on the reviewer model from the table, with the prompt "Read $report_dir/T-0NN.review-package.md and execute it exactly." The reviewer runs in a new pane, or in the implementer's pane after `/exit`. The review package makes it read-only; it writes `$report_dir/T-0NN.review.md`.
 
 **Layout.** Two worker columns of at most 3 panes each, to the right of the orchestrator:
@@ -70,7 +85,13 @@ Close a worker pane only after its report is accepted and no follow-up turn is n
 - the contract sections listed in the task header;
 - vault excerpts quoted by the orchestrator.
 
-Generate it with `bash <executing-herdr-plans skill dir>/scripts/make-package.sh`; for the read-only cross-cutting review, add `--role review`.
+Generate it with `bash <executing-herdr-plans skill dir>/scripts/make-package.sh`; for the read-only cross-cutting review of code, add `--role review`. For findings and document tasks the script reads the kind from the task header (`--kind` is only a cross-check and may be omitted); the cross-cutting review of a plan without code is a `findings` task, so it has no `--role review`.
+
+**Deliverable** (plans with findings or document tasks; remove this block otherwise):
+- Path: `<COORDINATION_ROOT>/deliverables/<run-id>/`, with `parts/`, `evidence/`, `<name>.md` and, if the format is `html`, `<name>.html`.
+- Format: `<md | html>`. The `.md` is the source; the `.html` is generated from it, never hand-edited.
+- Render (format `html` only): `worker-generated` (default: the consolidation worker writes one self-contained `.html` from the `.md`, and again whenever the `.md` changes) or `<render command>` as decision D`<n>` (then it is in the allowlist and the T-000 tool check).
+- Commit decision D`<n>` `to confirm`: committed by the orchestrator on `<coordination-branch>`, or, for sensitive evidence, the same layout outside the repo and not committed.
 
 **ClickUp sync** (remove this block and write `**ClickUp:** none` plus the reason if there is no board). Rules: the "ClickUp sync worker" rule in writing-herdr-plans.
 - Board: list `<list id>` (`<list name>`), decision D`<n>` `to confirm`. The only writer is the `clickup` worker; it counts toward the 6-pane cap.
@@ -97,14 +118,14 @@ Generate it with `bash <executing-herdr-plans skill dir>/scripts/make-package.sh
 - Events (one prompt per batch, `--wait`): `plan created` (create one task per plan task: title, acceptance criteria, dependencies) · `plan revised` (edit title, description, dependencies; create new tasks; close removed ones with a comment) · `dispatched` · `in review` · `integrated` · `verified` · `blocked`. Each line: `T-0NN → <state> | <evidence>`.
 - After each batch the worker reads the affected tasks back and reports `STATUS` and the map. Record the result in the scratchpad's ClickUp line; on failure, queue the events there and continue.
 
-**Acceptance per task.** All of these must hold:
+**Acceptance per task.** Code: as below. Findings and document: `kinds/<kind>.md` in executing-herdr-plans. For code, all of these must hold:
 - the worker state has settled;
 - the report says PASS;
 - `git -C <worktree> diff --stat <base>...HEAD` touches only the task's declared files;
 - the orchestrator has re-run the task's verification commands in the worktree;
 - a separate reviewer reports no Critical or Important findings, or they were fixed and verified again.
 
-**Integration gate** (orchestrator, coordination checkout, after each `git merge --no-ff feature/<prefix>-<task>`):
+**Integration gate** (orchestrator, coordination checkout, after each `git merge --no-ff feature/<prefix>-<task>`). Findings and document: the plan's check commands over `deliverables/<run-id>/parts/` (unique IDs, filled evidence fields, outline headings present).
 
 ```bash
 <full gate, e.g. pnpm lint && pnpm test && pnpm test:e2e && pnpm build>
